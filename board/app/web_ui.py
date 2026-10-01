@@ -16,7 +16,6 @@ Features:
 
 from __future__ import annotations
 
-import cgi
 import http.server
 import json
 import socketserver
