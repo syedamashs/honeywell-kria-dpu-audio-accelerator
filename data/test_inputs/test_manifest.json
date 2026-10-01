@@ -1,72 +1,79 @@
 {
   "test_00": {
-    "filename": "test_00_yes.wav",
-    "path": "D:\\CPU DPU project\\data\\test_inputs\\test_00_yes.wav",
+    "filename": "test_00_yes_cd85758f_nohash_4.wav",
+    "path": "E:\\Projects\\Hackathon\\CPU DPU project\\data\\test_inputs\\test_00_yes_cd85758f_nohash_4.wav",
     "label": "yes",
     "class_idx": 0,
-    "sha256": "f1cf28e0827742279234518c5d075079866dee3fd7aa1a70b23deb1d38644341"
+    "sha256": "39afbf7f09e4d7e79e0e32510281af6cf860d3747547b1e0b2bcd6b5c96ce079"
   },
   "test_01": {
-    "filename": "test_01_yes.wav",
-    "path": "D:\\CPU DPU project\\data\\test_inputs\\test_01_yes.wav",
+    "filename": "test_01_yes_3df9a3d4_nohash_0.wav",
+    "path": "E:\\Projects\\Hackathon\\CPU DPU project\\data\\test_inputs\\test_01_yes_3df9a3d4_nohash_0.wav",
     "label": "yes",
     "class_idx": 0,
-    "sha256": "dfd61031a8ea77f29ff8955346684367cc095c7033be00b0666c834c64c8b9cd"
+    "sha256": "8ff80adf034e3ede419c8ae51c55c52f3b9b2d06acab442cd67d9a75b32a3eaa"
   },
   "test_02": {
-    "filename": "test_02_no.wav",
-    "path": "D:\\CPU DPU project\\data\\test_inputs\\test_02_no.wav",
+    "filename": "test_02_no_1093c8e7_nohash_0.wav",
+    "path": "E:\\Projects\\Hackathon\\CPU DPU project\\data\\test_inputs\\test_02_no_1093c8e7_nohash_0.wav",
     "label": "no",
     "class_idx": 1,
-    "sha256": "f9d0d83599ef1f64fb6cc6012f119b597a5340bd74e018afa6345b7fcec29f05"
+    "sha256": "bdd05f73da9c74fd6ff21e5f07fc17fd7a99ba240c7d9b28b84dd06a078288cc"
   },
   "test_03": {
-    "filename": "test_03_no.wav",
-    "path": "D:\\CPU DPU project\\data\\test_inputs\\test_03_no.wav",
+    "filename": "test_03_no_e71b4ce6_nohash_0.wav",
+    "path": "E:\\Projects\\Hackathon\\CPU DPU project\\data\\test_inputs\\test_03_no_e71b4ce6_nohash_0.wav",
     "label": "no",
     "class_idx": 1,
-    "sha256": "d23f8f7dd7af25e7000310dc5e7f5c779f22af3415699126aa1a18399754cee0"
+    "sha256": "cd32baa5b867327cbb5b19037a7f3863db887fe12981332f62bff515cc725707"
   },
   "test_04": {
-    "filename": "test_04_stop.wav",
-    "path": "D:\\CPU DPU project\\data\\test_inputs\\test_04_stop.wav",
+    "filename": "test_04_stop_837a0f64_nohash_4.wav",
+    "path": "E:\\Projects\\Hackathon\\CPU DPU project\\data\\test_inputs\\test_04_stop_837a0f64_nohash_4.wav",
     "label": "stop",
     "class_idx": 8,
-    "sha256": "4f363ed27c260cc75212f01b3663ac58e1816fe99ea51de9f17481b6e453a2e8"
+    "sha256": "55a4aed9b9f797522070daf9da05a8f3be793b85f8a84d51a23094f42fd32447"
   },
   "test_05": {
-    "filename": "test_05_stop.wav",
-    "path": "D:\\CPU DPU project\\data\\test_inputs\\test_05_stop.wav",
+    "filename": "test_05_stop_7192fddc_nohash_0.wav",
+    "path": "E:\\Projects\\Hackathon\\CPU DPU project\\data\\test_inputs\\test_05_stop_7192fddc_nohash_0.wav",
     "label": "stop",
     "class_idx": 8,
-    "sha256": "4f977b0a67590ebd93bf4b68a7f22f4fb1c5cf6c1fd7208996fd20008409f32a"
+    "sha256": "d0e7e237696cda931d2bb11fa451d44089603f7593fedcd4ab640ad543ab48f2"
   },
   "test_06": {
-    "filename": "test_06_go.wav",
-    "path": "D:\\CPU DPU project\\data\\test_inputs\\test_06_go.wav",
+    "filename": "test_06_go_5c8af87a_nohash_2.wav",
+    "path": "E:\\Projects\\Hackathon\\CPU DPU project\\data\\test_inputs\\test_06_go_5c8af87a_nohash_2.wav",
     "label": "go",
     "class_idx": 9,
-    "sha256": "d956732b7879267913da2443e54368288ae88d2848e677e1a7e7468c086daa9f"
+    "sha256": "33569f953b8bbc6fd3b4841e766b45383437903e5d6b718dac1a3a88d8ffc2f3"
   },
   "test_07": {
-    "filename": "test_07_go.wav",
-    "path": "D:\\CPU DPU project\\data\\test_inputs\\test_07_go.wav",
+    "filename": "test_07_go_4290ca61_nohash_1.wav",
+    "path": "E:\\Projects\\Hackathon\\CPU DPU project\\data\\test_inputs\\test_07_go_4290ca61_nohash_1.wav",
     "label": "go",
     "class_idx": 9,
-    "sha256": "d13adedfb4df585d6ef2638a0a59d316fd3fb8c2b85ae18745001af841f6f60e"
+    "sha256": "10b649d110ec0d41046c47aa618c06027fb56c1bf48dbe1a6a8a221ca8c77bb0"
   },
   "test_08": {
-    "filename": "test_08_unknown.wav",
-    "path": "D:\\CPU DPU project\\data\\test_inputs\\test_08_unknown.wav",
-    "label": "unknown",
-    "class_idx": 10,
-    "sha256": "e438ada18d2c077b3b4b39e77e2f7808ef4e87a530c825a6f925b365785de4c3"
+    "filename": "test_08_up_e1469561_nohash_0.wav",
+    "path": "E:\\Projects\\Hackathon\\CPU DPU project\\data\\test_inputs\\test_08_up_e1469561_nohash_0.wav",
+    "label": "up",
+    "class_idx": 2,
+    "sha256": "0f7e3f7ce05dcfacb64d3fc623169cc4fbe82325e6dbc607000e64b826c947dd"
   },
   "test_09": {
-    "filename": "test_09_silence.wav",
-    "path": "D:\\CPU DPU project\\data\\test_inputs\\test_09_silence.wav",
-    "label": "silence",
-    "class_idx": 11,
-    "sha256": "c06024995dba7dde9d5b7c2439a580587a985423f15bcab86e1f88d69d1634ed"
+    "filename": "test_09_up_37fc5d97_nohash_0.wav",
+    "path": "E:\\Projects\\Hackathon\\CPU DPU project\\data\\test_inputs\\test_09_up_37fc5d97_nohash_0.wav",
+    "label": "up",
+    "class_idx": 2,
+    "sha256": "bb2cc400adb5fe9e98de4977075b7b89fab2b38f99dd05ee44b122138ecb68a0"
+  },
+  "test_10": {
+    "filename": "test_10_unknown_1fe4c891_nohash_0.wav",
+    "path": "E:\\Projects\\Hackathon\\CPU DPU project\\data\\test_inputs\\test_10_unknown_1fe4c891_nohash_0.wav",
+    "label": "unknown",
+    "class_idx": 10,
+    "sha256": "48445dbaa7f4e62ff55108d9d16b608ce575ffe1c8313acbee3106e81560a10e"
   }
 }

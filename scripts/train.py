@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import inspect
 import sys
 import time
 from pathlib import Path
@@ -164,6 +165,9 @@ def export_onnx(model: nn.Module, out_path: Path, opset: int = 13) -> None:
     model.eval()
     dummy = torch.zeros(1, 1, N_MELS, NUM_FRAMES)
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    export_options = {}
+    if "dynamo" in inspect.signature(torch.onnx.export).parameters:
+        export_options["dynamo"] = False
     torch.onnx.export(
         model, dummy, str(out_path),
         opset_version=opset,
@@ -173,6 +177,7 @@ def export_onnx(model: nn.Module, out_path: Path, opset: int = 13) -> None:
         do_constant_folding=True,
         export_params=True,
         verbose=False,
+        **export_options,
     )
     print(f"[OK] ONNX exported -> {out_path}  (opset {opset})")
 

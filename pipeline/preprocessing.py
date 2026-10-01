@@ -19,6 +19,8 @@ Verification: output is tested against librosa in pipeline/tests/test_preprocess
 
 from __future__ import annotations
 
+from io import BytesIO
+from math import gcd
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -65,16 +67,62 @@ def load_wav(path: str | Path) -> np.ndarray:
     sr, data = wav_io.read(str(path))
     if sr != SAMPLE_RATE:
         raise ValueError(f"Expected {SAMPLE_RATE} Hz, got {sr} Hz: {path}")
-    if data.ndim == 2:                     # stereo → mono
-        data = data.mean(axis=1)
-    # Normalise to [-1, 1]
-    if data.dtype == np.int16:
-        data = data.astype(np.float32) / 32768.0
-    elif data.dtype == np.int32:
-        data = data.astype(np.float32) / 2147483648.0
-    else:
-        data = data.astype(np.float32)
+    data = _audio_to_float32_mono(data)
     return pad_or_trim(data, int(SAMPLE_RATE * CLIP_DURATION))
+
+
+def load_wav_bytes(contents: bytes, source_name: str = "uploaded WAV") -> np.ndarray:
+    """Decode uploaded PCM WAV bytes into a normalized 16 kHz mono clip."""
+    audio = decode_wav_bytes(contents, source_name)
+    return pad_or_trim(audio, int(SAMPLE_RATE * CLIP_DURATION))
+
+
+def decode_wav_bytes(
+    contents: bytes,
+    source_name: str = "uploaded WAV",
+    max_duration_s: float | None = None,
+) -> np.ndarray:
+    """Decode WAV bytes to normalized 16 kHz mono audio, preserving duration."""
+    try:
+        sample_rate, data = wav_io.read(BytesIO(contents))
+    except Exception as exc:
+        raise ValueError(f"Could not read {source_name} as a WAV file: {exc}") from exc
+
+    if not 1_000 <= sample_rate <= 192_000:
+        raise ValueError(f"Unsupported sample rate ({sample_rate} Hz) in {source_name}.")
+
+    audio = _audio_to_float32_mono(data)
+    if sample_rate != SAMPLE_RATE:
+        divisor = gcd(sample_rate, SAMPLE_RATE)
+        audio = sp_signal.resample_poly(
+            audio,
+            up=SAMPLE_RATE // divisor,
+            down=sample_rate // divisor,
+        ).astype(np.float32)
+
+    if max_duration_s is not None:
+        audio = audio[:int(SAMPLE_RATE * max_duration_s)]
+    return audio
+
+
+def _audio_to_float32_mono(data: np.ndarray) -> np.ndarray:
+    if data.ndim not in (1, 2):
+        raise ValueError(f"Expected mono or stereo audio, got shape {data.shape}.")
+
+    if np.issubdtype(data.dtype, np.integer):
+        limits = np.iinfo(data.dtype)
+        if limits.min == 0:
+            midpoint = (limits.max + 1) / 2.0
+            audio = (data.astype(np.float32) - midpoint) / midpoint
+        else:
+            scale = float(max(abs(limits.min), abs(limits.max)))
+            audio = data.astype(np.float32) / scale
+    else:
+        audio = data.astype(np.float32)
+
+    if audio.ndim == 2:
+        audio = audio.mean(axis=1)
+    return np.ascontiguousarray(audio, dtype=np.float32)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

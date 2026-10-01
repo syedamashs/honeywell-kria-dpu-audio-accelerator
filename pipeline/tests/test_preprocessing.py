@@ -15,19 +15,23 @@ Pass criteria:
 
 from __future__ import annotations
 
+from io import BytesIO
 import sys
 from pathlib import Path
 
 import numpy as np
 import pytest
+import scipy.io.wavfile as wav_io
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from pipeline.preprocessing import (
     build_mel_filterbank,
+    decode_wav_bytes,
     extract_log_mel,
     frame_signal,
     load_wav,
+    load_wav_bytes,
     log_compression,
     mel_filterbank_gemm,
     power_spectrum,
@@ -187,6 +191,35 @@ class TestFullPipeline:
         np.testing.assert_array_equal(feat1, feat2)
 
 
+class TestWavByteLoading:
+    def test_stereo_audio_is_downmixed_resampled_and_normalized(self):
+        sample_rate = 8_000
+        stereo = np.full((sample_rate, 2), 16_384, dtype=np.int16)
+        wav_buffer = BytesIO()
+        wav_io.write(wav_buffer, sample_rate, stereo)
+
+        audio = load_wav_bytes(wav_buffer.getvalue(), "upload.wav")
+
+        assert audio.shape == (SAMPLE_RATE,)
+        assert audio.dtype == np.float32
+        assert audio.mean() == pytest.approx(0.5, abs=0.01)
+
+    def test_rejects_non_wav_bytes(self):
+        with pytest.raises(ValueError, match="Could not read upload.wav as a WAV file"):
+            load_wav_bytes(b"not a wav", "upload.wav")
+
+    def test_long_recording_is_preserved_up_to_duration_limit(self):
+        sample_rate = 48_000
+        audio = np.full(sample_rate * 8, 8_192, dtype=np.int16)
+        wav_buffer = BytesIO()
+        wav_io.write(wav_buffer, sample_rate, audio)
+
+        decoded = decode_wav_bytes(wav_buffer.getvalue(), "recording.wav", max_duration_s=7.0)
+
+        assert decoded.shape == (SAMPLE_RATE * 7,)
+        assert decoded.dtype == np.float32
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Librosa comparison (integration test)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -200,6 +233,10 @@ class TestLibrosaComparison:
     - Different power_to_db reference (librosa uses ref=max, we use log10 with floor)
     - Small numerical differences in FFT implementations
     """
+
+    @pytest.fixture(autouse=True)
+    def check_librosa(self):
+        pytest.importorskip("librosa")
 
     def test_shape_matches_librosa(self, synthetic_wav):
         our_feat = extract_log_mel(synthetic_wav, apply_pre_emphasis=False)

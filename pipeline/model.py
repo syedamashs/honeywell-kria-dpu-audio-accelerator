@@ -283,7 +283,7 @@ def count_macs(model: nn.Module, input_shape=(1, 1, N_MELS, NUM_FRAMES)) -> int:
 
     model.eval()
     with torch.no_grad():
-        dummy = torch.zeros(*input_shape)
+        dummy = torch.zeros(*input_shape, device=next(model.parameters()).device)
         model(dummy)
 
     for h in hooks:

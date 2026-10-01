@@ -23,7 +23,11 @@ vivado/**/*.bit
 vivado/**/*.ltx
 hls/mel_gemm/solution*/
 
-# Python
+# Python & Virtual Environments
+.venv/
+venv/
+env/
+ENV/
 __pycache__/
 *.pyc
 *.pyo
@@ -34,6 +38,10 @@ build/
 *.tar.gz
 *.zip
 .eggs/
+
+# Scratch & Local IDE
+scratch/
+.system_generated/
 
 # Jupyter
 .ipynb_checkpoints/
