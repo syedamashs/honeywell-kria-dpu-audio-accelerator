@@ -11,33 +11,56 @@
 # labelled [ESTIMATED].
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Pipeline Diagram (text, see report/architecture_diagram.drawio for visual)
+# Pipeline Diagram with Dual Input Modes
 # ─────────────────────────────────────────────────────────────────────────────
 #
-#  WAV / Mic (16 kHz mono, 1 s)
-#       │
-#  ┌────▼────────────────────────────────────────────────────┐
-#  │  PREPROCESSING (Stage 1)                                │
+#  [ Passive Data Mode ]          [ Real-Time Voice Mode ]
+#   (Dataset / Stored WAV)         (Live Microphone Audio)
+#            │                                │
+#            └───────────────┬────────────────┘
+#                            ▼
+#         Standardized Audio: (16000,) float32 @ 16 kHz
+#                            │
+#  ┌─────────────────────────▼───────────────────────────────┐
+#  │  PREPROCESSING (Stage 1 - IDENTICAL FOR BOTH MODES)     │
 #  │  1. Pre-emphasis filter                     CPU (always)│
 #  │  2. Framing + Hann window (25ms/10ms hop)   CPU (always)│
-#  │  3. FFT → power spectrum (N_FFT=512)        CPU (always)│
-#  │  4. Mel filterbank GEMM  [40×257]@[257×T]  ← HLS target│
+#  │  3. FFT -> power spectrum (N_FFT=512)       CPU (always)│
+#  │  4. Mel filterbank GEMM  [40x257]@[257x98] <- HLS target│
 #  │  5. Log compression                         CPU / fused │
-#  └────┬────────────────────────────────────────────────────┘
-#       │  Feature tensor: (1, 40, 101)  float32
-#  ┌────▼────────────────────────────────────────────────────┐
-#  │  INFERENCE (Stage 2)                                    │
-#  │  DS-CNN layers (Conv/DW/BN/ReLU/GAP/FC)    DPU (VART)  │
-#  │  [GRU — unsupported variant]                CPU fallback│
-#  │  Softmax                                    CPU (always)│
-#  └────┬────────────────────────────────────────────────────┘
-#       │  Logits: (12,) → probabilities: (12,)
-#  ┌────▼────────────────────────────────────────────────────┐
+#  └─────────────────────────┬───────────────────────────────┘
+#                            │  Processed Tensor: (1, 1, 40, 98)
+#  ┌─────────────────────────▼───────────────────────────────┐
+#  │  INFERENCE (Stage 2 - IDENTICAL HARDWARE PIPELINE)      │
+#  │  Config A: ARM Cortex-A53 CPU (INT8 NEON)               │
+#  │  Config B: DPUCZDX8G IP Core (VART Runtime)             │
+#  │  Config C: DPUCZDX8G + Custom HLS GEMM Kernel           │
+#  │  [GRU - unsupported variant]                CPU fallback│
+#  └─────────────────────────┬───────────────────────────────┘
+#                            │  Logits: (12,)
+#  ┌─────────────────────────▼───────────────────────────────┐
 #  │  POSTPROCESSING (Stage 3)                               │
-#  │  Argmax + label decode                      CPU (always)│
-#  └────┬────────────────────────────────────────────────────┘
-#       │
-#  Keyword label + confidence + per-stage latency
+#  │  Softmax + Argmax + Label decode            CPU (always)│
+#  └─────────────────────────┬───────────────────────────────┘
+#                            │
+#         Keyword label + confidence + per-stage latency
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# Dual Input Modes Specification
+# ─────────────────────────────────────────────────────────────────────────────
+
+INPUT_MODES = {
+    "passive": {
+        "name": "Passive Data Mode",
+        "source": "Google Speech Commands v2 / Stored WAV clips",
+        "description": "Reads stored audio files from disk/dataset; extracts 16 kHz mono 1.0s audio",
+    },
+    "realtime": {
+        "name": "Real-Time Voice Mode",
+        "source": "Live Microphone Input",
+        "description": "Captures 1.0s rolling audio stream from microphone; normalizes to [-1.0, 1.0]",
+    },
+}
 
 
 # Partition Map — first draft (Evidence TBD from board measurements)
