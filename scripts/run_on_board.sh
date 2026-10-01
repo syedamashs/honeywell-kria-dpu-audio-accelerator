@@ -71,9 +71,9 @@ for sensor in /sys/class/hwmon/hwmon*/power1_input; do
     fi
 done
 
-# 7. Run Interactive Demo verification
+# 7. Run Demo verification (Passive Mode)
 echo "[6/6] Running verification demo..."
-python3 board/app/demo.py --wav data/test_inputs/test_00_yes.wav --mode cpu
+python3 board/app/demo.py --input-mode passive --wav data/test_inputs/test_00_yes.wav --engine cpu
 
 echo "=================================================================="
 echo " SESSION COMPLETE. All board logs saved to: ${RESULTS_DIR}"
