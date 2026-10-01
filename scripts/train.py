@@ -176,12 +176,20 @@ def export_onnx(model: nn.Module, out_path: Path, opset: int = 13) -> None:
     )
     print(f"[OK] ONNX exported -> {out_path}  (opset {opset})")
 
-    # Verify ONNX graph
+    # Verify and clean ONNX graph (inline weights, clean stale value_info, infer clean shapes)
     try:
         import onnx
-        m = onnx.load(str(out_path))
-        onnx.checker.check_model(m)
-        print(f"    ONNX check: OK  (inputs: {[i.name for i in m.graph.input]})")
+        m = onnx.load(str(out_path), load_external_data=True)
+        while len(m.graph.value_info) > 0:
+            m.graph.value_info.pop()
+        inferred = onnx.shape_inference.infer_shapes(m, check_type=True)
+        onnx.save_model(inferred, str(out_path), save_as_external_data=False)
+        onnx.checker.check_model(inferred)
+        # Remove stray external data file if created
+        data_file = Path(str(out_path) + ".data")
+        if data_file.exists():
+            data_file.unlink(missing_ok=True)
+        print(f"    ONNX check: OK (self-contained, inputs: {[i.name for i in inferred.graph.input]})")
     except ImportError:
         print("    [!] onnx not installed, skipping check")
 
