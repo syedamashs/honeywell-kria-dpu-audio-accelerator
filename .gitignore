@@ -1,0 +1,49 @@
+# Data (large files — download via script)
+data/raw/
+data/processed/
+
+# Model weights (large)
+models/fp32/*.pth
+models/onnx/*.onnx
+models/quantized/
+models/compiled/
+
+# Results (regenerate from notebook)
+results/raw/*.csv
+results/plots/
+results/profiler/
+
+# Vivado generated outputs
+vivado/*/vivado.jou
+vivado/*/vivado.log
+vivado/*/.Xil/
+vivado/*/impl_1/
+vivado/*/synth_1/
+vivado/**/*.bit
+vivado/**/*.ltx
+hls/mel_gemm/solution*/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Env
+.env
+*.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea/
