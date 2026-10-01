@@ -73,7 +73,7 @@ PREPROC_PARAMS = {
     "n_mfcc":           40,
     "fmin_hz":          20.0,
     "fmax_hz":          4_000.0,
-    "num_frames":       101,
+    "num_frames":       98,
     "n_bins":           257,    # n_fft // 2 + 1
     "clip_duration_s":  1.0,
 }
@@ -97,4 +97,4 @@ if __name__ == "__main__":
     print("-" * 70)
     for row in PARTITION_MAP:
         block, dpu, a, b, c, gemm, ev = row
-        print(f"{block:<25} {'✓' if dpu else '✗':>5} {a:>8} {b:>12} {c:>14}")
+        print(f"{block:<25} {'YES' if dpu else '-':>5} {a:>8} {b:>12} {c:>14}")

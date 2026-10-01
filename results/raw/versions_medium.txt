@@ -1,0 +1,10 @@
+Recorded at: 2026-10-01T14:36:53.341584
+python: 3.14.8
+numpy: 2.5.3
+scipy: 1.18.1
+librosa: 1.0.0
+torch: 2.14.1+cpu
+torchaudio: 2.11.0+cpu
+onnx: 1.23.1
+onnxruntime: 1.30.0
+sklearn: 1.9.1

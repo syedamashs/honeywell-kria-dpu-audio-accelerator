@@ -174,7 +174,7 @@ def export_onnx(model: nn.Module, out_path: Path, opset: int = 13) -> None:
         export_params=True,
         verbose=False,
     )
-    print(f"[✓] ONNX exported → {out_path}  (opset {opset})")
+    print(f"[OK] ONNX exported -> {out_path}  (opset {opset})")
 
     # Verify ONNX graph
     try:
@@ -198,7 +198,7 @@ def main():
     parser.add_argument("--batch_size",  type=int, default=64)
     parser.add_argument("--lr",          type=float, default=1e-3)
     parser.add_argument("--weight_decay",type=float, default=1e-4)
-    parser.add_argument("--num_workers", type=int, default=4)
+    parser.add_argument("--num_workers", type=int, default=0)
     parser.add_argument("--seed",        type=int, default=GLOBAL_SEED)
     parser.add_argument("--splits_dir",  default="data/processed/splits")
     parser.add_argument("--no_export_onnx", action="store_true")
@@ -286,7 +286,7 @@ def main():
         })
         csv_fh.flush()
 
-        if va_acc > best_val_acc:
+        if va_acc >= best_val_acc or not best_path.exists():
             best_val_acc = va_acc
             torch.save({
                 "epoch": epoch, "state_dict": model.state_dict(),
@@ -303,14 +303,14 @@ def main():
 
     # Test accuracy
     te_loss, te_acc = evaluate(model, test_loader, criterion, device)
-    print(f"\n[✓] Test accuracy : {te_acc*100:.2f}%")
-    print(f"[✓] Best val acc  : {best_val_acc*100:.2f}%")
-    print(f"[✓] Checkpoints   : {best_path}")
+    print(f"\n[OK] Test accuracy : {te_acc*100:.2f}%")
+    print(f"[OK] Best val acc  : {best_val_acc*100:.2f}%")
+    print(f"[OK] Checkpoints   : {best_path}")
 
     # ONNX export
     if not args.no_export_onnx:
         # Load best weights for ONNX export
-        ckpt = torch.load(best_path, map_location="cpu")
+        ckpt = torch.load(best_path, map_location="cpu", weights_only=False)
         model.load_state_dict(ckpt["state_dict"])
         model = model.cpu()
         onnx_path = models_dir / "onnx" / f"dscnn_{args.variant}.onnx"

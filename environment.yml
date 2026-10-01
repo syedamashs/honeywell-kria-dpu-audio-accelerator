@@ -1,4 +1,11 @@
 name: kws_dpu
+# NOTE: This environment targets Python 3.10 via Conda/Miniconda.
+# If running on a system with Python 3.14 installed (Windows default),
+# install Miniconda and run: conda env create -f environment.yml
+# PyTorch requires Python 3.9–3.12; Python 3.14 is NOT yet supported by PyTorch.
+#
+# For pip-only installs on Python 3.12 (without conda):
+#   pip install -r requirements.txt
 channels:
   - pytorch
   - conda-forge

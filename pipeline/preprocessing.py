@@ -31,22 +31,22 @@ from pipeline.utils import (
     CLIP_DURATION,
     FMAX,
     FMIN,
+    HOP_LEN,
     HOP_MS,
+    N_BINS,
     N_FFT,
     N_MELS,
     N_MFCC,
     NUM_FRAMES,
     SAMPLE_RATE,
     WINDOW_MS,
+    WIN_LEN,
     pad_or_trim,
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Constants derived from utils parameters
+# Local constants (not in utils — preprocessing-specific)
 # ─────────────────────────────────────────────────────────────────────────────
-WIN_LEN  = int(SAMPLE_RATE * WINDOW_MS / 1000)   # 400 samples
-HOP_LEN  = int(SAMPLE_RATE * HOP_MS    / 1000)   # 160 samples
-N_BINS   = N_FFT // 2 + 1                         # 257 one-sided FFT bins
 LOG_FLOOR = 1e-10                                  # prevents log(0)
 PRE_EMPH  = 0.97                                   # pre-emphasis coefficient
 
@@ -135,12 +135,40 @@ def power_spectrum(frames: np.ndarray, n_fft: int = N_FFT) -> np.ndarray:
 # 5. Mel filterbank matrix (cached at module load)
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _hz_to_mel(hz: float) -> float:
-    return 2595.0 * np.log10(1.0 + hz / 700.0)
+def _hz_to_mel(frequencies: np.ndarray | float) -> np.ndarray:
+    """Convert Hz to Mel using Slaney Auditory Toolbox formula."""
+    frequencies = np.asanyarray(frequencies)
+    f_min = 0.0
+    f_sp = 200.0 / 3
+    mels = (frequencies - f_min) / f_sp
+    min_log_hz = 1000.0
+    min_log_mel = (min_log_hz - f_min) / f_sp
+    logstep = np.log(6.4) / 27.0
+    if frequencies.ndim:
+        log_t = frequencies >= min_log_hz
+        mels = mels.copy()
+        mels[log_t] = min_log_mel + np.log(frequencies[log_t] / min_log_hz) / logstep
+    elif frequencies >= min_log_hz:
+        mels = min_log_mel + np.log(frequencies / min_log_hz) / logstep
+    return mels
 
 
-def _mel_to_hz(mel: float) -> float:
-    return 700.0 * (10.0 ** (mel / 2595.0) - 1.0)
+def _mel_to_hz(mels: np.ndarray | float) -> np.ndarray:
+    """Convert Mel to Hz using Slaney Auditory Toolbox formula."""
+    mels = np.asanyarray(mels)
+    f_min = 0.0
+    f_sp = 200.0 / 3
+    freqs = f_min + f_sp * mels
+    min_log_hz = 1000.0
+    min_log_mel = (min_log_hz - f_min) / f_sp
+    logstep = np.log(6.4) / 27.0
+    if mels.ndim:
+        log_t = mels >= min_log_mel
+        freqs = freqs.copy()
+        freqs[log_t] = min_log_hz * np.exp(logstep * (mels[log_t] - min_log_mel))
+    elif mels >= min_log_mel:
+        freqs = min_log_hz * np.exp(logstep * (mels - min_log_mel))
+    return freqs
 
 
 def build_mel_filterbank(
@@ -151,32 +179,39 @@ def build_mel_filterbank(
     fmax:    float = FMAX,
 ) -> np.ndarray:
     """
-    Build the mel filterbank matrix  M  of shape (n_mels, N_BINS).
+    Build the mel filterbank matrix M of shape (n_mels, N_BINS).
 
     The mel filterbank GEMM is:
-        Mel[n_mels, T] = M[n_mels, N_BINS]  @  P[N_BINS, T]
+        Mel[n_mels, T] = M[n_mels, N_BINS] @ P[N_BINS, T]
 
-    This matrix is fixed for the lifetime of the project.
-    It is also the matrix stored in BRAM inside the HLS kernel.
+    Uses the standard Slaney Auditory Toolbox triangle filters with
+    energy normalization, matching librosa's default mel filterbank.
 
     Returns:
         M: float32 array of shape (N_MELS, N_BINS) = (40, 257)
     """
-    n_bins = n_fft // 2 + 1
-    mel_min = _hz_to_mel(fmin)
-    mel_max = _hz_to_mel(fmax)
-    mel_points = np.linspace(mel_min, mel_max, n_mels + 2)
-    hz_points  = np.array([_mel_to_hz(m) for m in mel_points])
-    bin_points = np.floor((n_fft + 1) * hz_points / sr).astype(int)
+    n_bins = int(1 + n_fft // 2)
+    weights = np.zeros((n_mels, n_bins), dtype=np.float32)
+    fftfreqs = np.linspace(0, float(sr) / 2, n_bins)
 
-    M = np.zeros((n_mels, n_bins), dtype=np.float32)
-    for m in range(1, n_mels + 1):
-        lo, ctr, hi = bin_points[m - 1], bin_points[m], bin_points[m + 1]
-        for k in range(lo, ctr):
-            M[m - 1, k] = (k - lo) / max(ctr - lo, 1)
-        for k in range(ctr, hi):
-            M[m - 1, k] = (hi - k) / max(hi - ctr, 1)
-    return M
+    min_mel = _hz_to_mel(fmin)
+    max_mel = _hz_to_mel(fmax)
+    mels = np.linspace(min_mel, max_mel, n_mels + 2)
+    mel_f = _mel_to_hz(mels)
+
+    fdiff = np.diff(mel_f)
+    ramps = np.subtract.outer(mel_f, fftfreqs)
+
+    for i in range(n_mels):
+        lower = -ramps[i] / fdiff[i]
+        upper = ramps[i + 2] / fdiff[i + 1]
+        weights[i] = np.maximum(0, np.minimum(lower, upper))
+
+    # Slaney area normalization
+    enorm = 2.0 / (mel_f[2 : n_mels + 2] - mel_f[:n_mels])
+    weights *= enorm[:, np.newaxis]
+
+    return weights.astype(np.float32)
 
 
 # Module-level cached filterbank — built once, reused for every call
@@ -247,7 +282,7 @@ def dct_mfcc(log_mel: np.ndarray, n_mfcc: int = N_MFCC) -> np.ndarray:
     Returns:
         mfcc: (n_mfcc, T) float32
     """
-    mfcc_all = sp_signal.cosine_transform(log_mel, type=2, norm="ortho", axis=0)
+    mfcc_all = sp_fft.dct(log_mel, type=2, norm="ortho", axis=0)
     return mfcc_all[:n_mfcc].astype(np.float32)
 
 
@@ -300,6 +335,12 @@ def librosa_log_mel(wav: np.ndarray) -> np.ndarray:
         log_mel: (N_MELS, T) float32
     """
     import librosa  # deferred import: not needed at board runtime
+
+    # When center=False, librosa requires N_FFT samples per frame.
+    # Pad right so librosa produces exactly NUM_FRAMES frames.
+    needed_len = (NUM_FRAMES - 1) * HOP_LEN + N_FFT
+    if len(wav) < needed_len:
+        wav = np.pad(wav, (0, needed_len - len(wav)))
 
     S = librosa.feature.melspectrogram(
         y=wav,

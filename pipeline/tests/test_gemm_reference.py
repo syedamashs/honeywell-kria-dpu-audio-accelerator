@@ -163,9 +163,9 @@ class TestMACTable:
     """
 
     @pytest.mark.parametrize("variant,lo_M,hi_M", [
-        ("small",  1,  20),    # ~3–5 M (small variant)
-        ("medium", 5, 100),    # ~17–74 M (medium)
-        ("large", 20, 300),    # ~51–237 M (large)
+        ("small",   15,   35),   # ~24.9 M (small variant with 40-mel spectrogram)
+        ("medium", 150,  350),   # ~263.9 M (medium)
+        ("large",  500, 1000),   # ~809.8 M (large)
     ])
     def test_total_macs_in_range(self, variant, lo_M, hi_M):
         layers = build_mac_table(variant)

@@ -36,7 +36,7 @@ from pipeline.preprocessing import (
 )
 from pipeline.utils import (
     N_MELS, N_FFT, NUM_FRAMES, SAMPLE_RATE,
-    WIN_LEN, HOP_LEN,
+    WIN_LEN, HOP_LEN, MODEL_CONFIGS,
 )
 
 
@@ -63,7 +63,7 @@ class GEMMLayer:
     def __str__(self) -> str:
         return (
             f"  {self.name:<30}  "
-            f"A{self.A_shape} @ B{self.B_shape} → {self.C_shape}  "
+            f"A{self.A_shape} @ B{self.B_shape} -> {self.C_shape}  "
             f"MACs={self.macs:>12,}  "
             f"bytes_rd={self.bytes_read:>10,}  "
             f"AI={self.arithmetic_intensity:5.2f} MACs/B"
@@ -263,21 +263,16 @@ def build_mac_table(variant: str = "medium") -> List[GEMMLayer]:
       FC1:   (1, 172) → (1, 172)
       FC2:   (1, 172) → (1, 12)
     """
-    configs = {
-        "small":  dict(C=64,  n=2,  fc=128),
-        "medium": dict(C=172, n=4,  fc=172),
-        "large":  dict(C=276, n=5,  fc=276),
-    }
-    cfg = configs[variant]
-    C, n_blocks, fc_dim = cfg["C"], cfg["n"], cfg["fc"]
+    cfg = MODEL_CONFIGS[variant]
+    C, n_blocks, dw_ch, fc_dim = cfg
 
     # Compute spatial sizes through stem
-    H, W = 40, 101
+    H, W = 40, NUM_FRAMES
     kH_s, kW_s = 10, 4
     sH_s, sW_s = 2, 1
     pH_s, pW_s = 4, 1
     H_s = (H + 2 * pH_s - kH_s) // sH_s + 1   # 20
-    W_s = (W + 2 * pW_s - kW_s) // sW_s + 1   # 100
+    W_s = (W + 2 * pW_s - kW_s) // sW_s + 1   # 97
 
     layers: List[GEMMLayer] = []
 
@@ -286,18 +281,18 @@ def build_mac_table(variant: str = "medium") -> List[GEMMLayer]:
 
     # Stem Conv
     layers.append(conv_gemm_layer_info(
-        "Stem Conv(1→C, 10×4, s=2×1)", 1, 1, H, W, C,
+        "Stem Conv(1->C, 10x4, s=2x1)", 1, 1, H, W, C,
         kH_s, kW_s, sH_s, sW_s, pH_s, pW_s,
     ))
 
     # DW-Sep blocks
     for i in range(n_blocks):
         layers.append(conv_gemm_layer_info(
-            f"Block{i+1} DW-Conv(C, 3×3, s=1)",
+            f"Block{i+1} DW-Conv(C, 3x3, s=1)",
             1, C, H_s, W_s, C, 3, 3, 1, 1, 1, 1, groups=C,
         ))
         layers.append(conv_gemm_layer_info(
-            f"Block{i+1} PW-Conv(C→C, 1×1)",
+            f"Block{i+1} PW-Conv(C->C, 1x1)",
             1, C, H_s, W_s, C, 1, 1, 1, 1, 0, 0,
         ))
 
@@ -315,7 +310,7 @@ def print_mac_table(variant: str = "medium") -> None:
     total_bytes = sum(l.bytes_read + l.bytes_write for l in layers)
 
     print(f"\n{'='*100}")
-    print(f"DS-CNN {variant.upper()} — GEMM layer breakdown")
+    print(f"DS-CNN {variant.upper()} -- GEMM layer breakdown")
     print(f"{'='*100}")
     print(f"  {'Layer':<30}  {'A shape':>18}  {'B shape':>18}  "
           f"{'MACs':>12}  {'Bytes rd':>12}  {'AI (M/B)':>10}")
@@ -323,7 +318,7 @@ def print_mac_table(variant: str = "medium") -> None:
     for l in layers:
         print(f"  {l.name:<30}  {str(l.A_shape):>18}  {str(l.B_shape):>18}  "
               f"{l.macs:>12,}  {l.bytes_read:>12,}  {l.arithmetic_intensity:>10.2f}")
-    print(f"  {'─'*96}")
+    print(f"  {'-'*96}")
     print(f"  {'TOTAL':<30}  {'':>18}  {'':>18}  "
           f"{total_macs:>12,}  {total_bytes:>12,}")
     print(f"\n  Total MACs: {total_macs/1e6:.2f} M")
@@ -348,7 +343,6 @@ class GEMMPipeline:
     """
 
     def __init__(self, variant: str = "medium", seed: int = 42):
-        from pipeline.model import MODEL_CONFIGS
         rng = np.random.default_rng(seed)
         stem_ch, n_blocks, dw_ch, fc_dim = MODEL_CONFIGS[variant]
         self.variant  = variant
@@ -357,20 +351,24 @@ class GEMMPipeline:
         self.fc_dim   = fc_dim
         self.M_filt   = build_mel_filterbank()
 
-        # Random weights (replace with loaded weights for real validation)
-        scale = 0.01
-        self.W_stem = rng.standard_normal((stem_ch, 1, 10, 4)).astype(np.float32) * scale
+        # Kaiming normal initialization to maintain activation variance
+        self.W_stem = (rng.standard_normal((stem_ch, 1, 10, 4)).astype(np.float32)
+                       * np.sqrt(2.0 / (1 * 10 * 4), dtype=np.float32))
         self.dw_weights = [
-            rng.standard_normal((dw_ch, 1, 3, 3)).astype(np.float32) * scale
+            rng.standard_normal((dw_ch, 1, 3, 3)).astype(np.float32)
+            * np.sqrt(2.0 / (3 * 3), dtype=np.float32)
             for _ in range(n_blocks)
         ]
         self.pw_weights = [
-            rng.standard_normal((dw_ch, dw_ch, 1, 1)).astype(np.float32) * scale
+            rng.standard_normal((dw_ch, dw_ch, 1, 1)).astype(np.float32)
+            * np.sqrt(2.0 / dw_ch, dtype=np.float32)
             for _ in range(n_blocks)
         ]
-        self.W_fc1   = rng.standard_normal((fc_dim, dw_ch)).astype(np.float32) * scale
+        self.W_fc1   = (rng.standard_normal((fc_dim, dw_ch)).astype(np.float32)
+                        * np.sqrt(2.0 / dw_ch, dtype=np.float32))
         self.b_fc1   = np.zeros(fc_dim, dtype=np.float32)
-        self.W_fc2   = rng.standard_normal((12, fc_dim)).astype(np.float32) * scale
+        self.W_fc2   = (rng.standard_normal((12, fc_dim)).astype(np.float32)
+                        * np.sqrt(2.0 / fc_dim, dtype=np.float32))
         self.b_fc2   = np.zeros(12, dtype=np.float32)
 
     def preprocess(self, wav: np.ndarray) -> np.ndarray:

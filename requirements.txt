@@ -1,0 +1,40 @@
+# requirements.txt — pip-only fallback (use environment.yml + Conda for full setup)
+#
+# For Python 3.12 (PyTorch-compatible):
+#   pip install -r requirements.txt
+#
+# PyTorch wheels: https://pytorch.org/get-started/locally/
+# ── PyTorch (CPU build for laptop dev) ──────────────────────────────────────
+torch==2.3.0
+torchaudio==2.3.0
+torchvision==0.18.0
+
+# ── Audio preprocessing ──────────────────────────────────────────────────────
+librosa==0.10.2
+soundfile==0.12.1
+
+# ── Scientific computing ─────────────────────────────────────────────────────
+numpy==1.26.4
+scipy==1.13.0
+
+# ── ONNX ────────────────────────────────────────────────────────────────────
+onnx==1.16.1
+onnxruntime==1.18.0
+onnxsim==0.4.36
+
+# ── Plotting / reporting ─────────────────────────────────────────────────────
+matplotlib==3.8.4
+pandas==2.2.1
+seaborn==0.13.2
+tabulate==0.9.0
+
+# ── ML utilities ─────────────────────────────────────────────────────────────
+scikit-learn==1.5.0
+
+# ── Testing ──────────────────────────────────────────────────────────────────
+pytest==8.2.0
+
+# ── Notebook ─────────────────────────────────────────────────────────────────
+jupyter==1.0.0
+ipykernel==6.29.4
+tqdm==4.66.2

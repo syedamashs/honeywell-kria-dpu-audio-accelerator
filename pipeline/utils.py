@@ -27,7 +27,12 @@ N_MFCC        = 40              # set equal to N_MELS; DCT step can be skipped
 FMIN          = 20.0            # Hz
 FMAX          = 4_000.0         # Hz
 CLIP_DURATION = 1.0             # seconds
-NUM_FRAMES    = 101             # floor((16000 - 400) / 160) + 1
+NUM_FRAMES    = 98              # (16000 - 400) // 160 + 1 = 98 (no center-padding)
+
+# Derived sample counts (computed once here; imported by preprocessing + gemm_reference)
+WIN_LEN  = int(SAMPLE_RATE * WINDOW_MS / 1000)   # 400 samples
+HOP_LEN  = int(SAMPLE_RATE * HOP_MS    / 1000)   # 160 samples
+N_BINS   = N_FFT // 2 + 1                         # 257 one-sided FFT bins
 
 # ── Keywords (10 + unknown + silence = 12 classes) ────────────────────────────
 KEYWORDS = [
@@ -46,6 +51,14 @@ GSC_ALL_WORDS = [
     "marvin", "nine", "no", "off", "on", "one", "right", "seven", "sheila",
     "six", "stop", "three", "tree", "two", "up", "visual", "wow", "yes", "zero",
 ]
+
+# ── Model configs ─────────────────────────────────────────────────────────────
+# (stem_channels, n_dw_blocks, dw_channels, fc_dim)
+MODEL_CONFIGS: Dict[str, tuple] = {
+    "small":  (64,  2,  64,  128),
+    "medium": (172, 4, 172,  172),
+    "large":  (276, 5, 276,  276),
+}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
