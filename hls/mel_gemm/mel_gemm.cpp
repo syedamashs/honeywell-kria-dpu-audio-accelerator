@@ -2,8 +2,6 @@
 
 // Filterbank weights stored in on-chip BRAM (40 x 257)
 // Generated from standard Slaney Auditory Toolbox formula
-extern const weight_t MEL_WEIGHTS_ROM[N_MELS][N_BINS];
-
 void mel_gemm_top(
     hls::stream<axis_pkt_t> &power_in,
     hls::stream<axis_pkt_t> &mel_out,

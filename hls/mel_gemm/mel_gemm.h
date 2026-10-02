@@ -29,6 +29,7 @@ typedef ap_fixed<16, 6, AP_RND, AP_SAT> out_t;
 
 // ── AXI-Stream Protocol Types ────────────────────────────────────────────────
 typedef ap_axis<16, 0, 0, 0> axis_pkt_t;
+extern const weight_t MEL_WEIGHTS_ROM[N_MELS][N_BINS];
 
 // ── Top-level HLS Kernel Signature ───────────────────────────────────────────
 void mel_gemm_top(
