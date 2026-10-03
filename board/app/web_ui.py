@@ -58,6 +58,8 @@ _whisper_model = None
 
 def transcribe_audio(audio: np.ndarray) -> str:
     global _whisper_model
+
+    # 1. Primary Engine: OpenAI Whisper (High-accuracy local/server model)
     try:
         import whisper
         if _whisper_model is None:
@@ -71,11 +73,34 @@ def transcribe_audio(audio: np.ndarray) -> str:
             verbose=False,
         )
         txt = result.get("text", "").strip()
-        print(f"[TRANSCRIPTION SUCCESS] Spoken text: {repr(txt)}", flush=True)
-        return txt
+        if txt:
+            print(f"[WHISPER TRANSCRIPT] {repr(txt)}", flush=True)
+            return txt
     except Exception as exc:
-        print(f"[TRANSCRIPTION NOTICE] {exc}", flush=True)
-        return ""
+        print(f"[WHISPER NOTICE] {exc}", flush=True)
+
+    # 2. Secondary Engine: Google Speech API (Fast cloud fallback, zero extra RAM)
+    try:
+        import speech_recognition as sr
+        from io import BytesIO
+        import scipy.io.wavfile as wavfile
+
+        audio_int16 = (np.clip(audio, -1.0, 1.0) * 32767).astype(np.int16)
+        bio = BytesIO()
+        wavfile.write(bio, SAMPLE_RATE, audio_int16)
+        bio.seek(0)
+
+        r = sr.Recognizer()
+        with sr.AudioFile(bio) as source:
+            data = r.record(source)
+            google_txt = r.recognize_google(data)
+            if google_txt:
+                print(f"[GOOGLE STT TRANSCRIPT] {repr(google_txt)}", flush=True)
+                return google_txt.strip()
+    except Exception as exc:
+        print(f"[STT FALLBACK NOTICE] {exc}", flush=True)
+
+    return ""
 
 
 HTML_PAGE = """<!DOCTYPE html>
