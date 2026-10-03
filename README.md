@@ -24,6 +24,8 @@ This repository delivers an end-to-end, hardware-accelerated **Audio AI/ML Keywo
 2. **Config B — CPU + DPU**: Hardware-accelerated neural inference executing on the **AMD Xilinx DPUCZDX8G IP core** via Vitis AI / VART runtime @ 300 MHz.
 3. **Config C — CPU + DPU + Custom Mel GEMM HLS Kernel**: Full heterogeneous FPGA pipeline accelerating both the feature extraction bottleneck and neural inference in programmable logic.
 
+> ⚠️ **Hardware Board Availability Notice**: Due to physical AMD Kria KV260 board unavailability during evaluation, the complete synthesizable Vitis HLS C++ kernel ([`hls/mel_gemm/`](hls/mel_gemm/)), C-simulation testbenches, Vivado block design TCL automation scripts ([`vivado/kv260_dpu_plus_kernel/`](vivado/kv260_dpu_plus_kernel/)), and FPGA resource utilization budgets are fully provided. See [**`CONFIG_C_HARDWARE_PACKAGE.md`**](CONFIG_C_HARDWARE_PACKAGE.md) for the complete hardware manifest and synthesis guide.
+
 ---
 
 ## 🏆 Key Benchmark Results & Speedup Summary
