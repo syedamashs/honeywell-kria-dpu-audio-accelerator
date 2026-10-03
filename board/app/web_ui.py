@@ -62,15 +62,19 @@ def transcribe_audio(audio: np.ndarray) -> str:
         import whisper
         if _whisper_model is None:
             _whisper_model = whisper.load_model(WHISPER_MODEL_SIZE)
+        audio_f32 = np.ascontiguousarray(audio, dtype=np.float32)
         result = _whisper_model.transcribe(
-            audio,
+            audio_f32,
             language="en",
             task="transcribe",
             fp16=False,
             verbose=False,
         )
-        return result["text"].strip()
-    except Exception:
+        txt = result.get("text", "").strip()
+        print(f"[TRANSCRIPTION SUCCESS] Spoken text: {repr(txt)}", flush=True)
+        return txt
+    except Exception as exc:
+        print(f"[TRANSCRIPTION NOTICE] {exc}", flush=True)
         return ""
 
 
@@ -2169,7 +2173,14 @@ HTML_PAGE = """<!DOCTYPE html>
             if (cap.speechRec) {
                 try { cap.speechRec.stop(); } catch(e) {}
             }
-            const liveTranscript = (cap.getSpokenText ? cap.getSpokenText() : '').trim();
+            let liveTranscript = (cap.getSpokenText ? cap.getSpokenText() : '').trim();
+            if (!liveTranscript) {
+                const previewEl = document.getElementById('transcript-preview');
+                const raw = previewEl ? previewEl.innerText.trim() : '';
+                if (raw && !raw.includes('Listening for speech') && !raw.includes('Transcript will appear')) {
+                    liveTranscript = raw.replace(/^[🗣️\s"']+/, '').replace(/["']+$/, '').trim();
+                }
+            }
 
             const btn = document.getElementById('record-btn');
             btn.innerHTML = '<span>Start recording</span>';
@@ -2333,10 +2344,13 @@ HTML_PAGE = """<!DOCTYPE html>
 
             const transcriptPanel = document.getElementById('res-transcript');
             if (transcriptPanel) {
-                const text = data.transcript || (data.keyword ? 'Keyword: ' + data.keyword : '');
-                if (text) {
+                const text = (data.transcript || '').trim();
+                if (text && text.toUpperCase() !== 'UNKNOWN') {
                     transcriptPanel.style.display = 'block';
-                    transcriptPanel.innerHTML = '<span style="font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px; display:block; margin-bottom:4px;">Speech Transcript</span>' + text;
+                    transcriptPanel.innerHTML = '<span style="font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px; display:block; margin-bottom:4px;">Speech Transcript</span><strong>🗣️ "' + text + '"</strong>';
+                } else if (data.mode === 'realtime') {
+                    transcriptPanel.style.display = 'block';
+                    transcriptPanel.innerHTML = '<span style="font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px; display:block; margin-bottom:4px;">Speech Transcript</span><em style="color:var(--text-dim);">(No words recognized from microphone)</em>';
                 } else {
                     transcriptPanel.style.display = 'none';
                 }
@@ -2636,12 +2650,14 @@ class KWSRequestHandler(http.server.SimpleHTTPRequestHandler):
             t5 = time.perf_counter_ns()
 
             # 5. Transcription (Speech-to-Text assistance when available)
-            transcript = str(req.get("transcript", "")).strip()
-            if not transcript:
-                try:
-                    transcript = transcribe_audio(audio)
-                except Exception:
-                    transcript = ""
+            client_transcript = str(req.get("transcript", "")).strip()
+            server_transcript = ""
+            try:
+                server_transcript = transcribe_audio(audio)
+            except Exception as err:
+                print(f"[TRANSCRIPTION ERROR] {err}", flush=True)
+
+            transcript = server_transcript or client_transcript
 
             # 6. Softmax Decoding & Multi-Keyword Detection
             t6 = time.perf_counter_ns()
@@ -2717,9 +2733,9 @@ class KWSRequestHandler(http.server.SimpleHTTPRequestHandler):
 
             if not transcript:
                 if detected_keywords_list:
-                    transcript = " ".join(d["keyword"].upper() for d in detected_keywords_list)
+                    transcript = ", ".join(d["keyword"].upper() for d in detected_keywords_list)
                 else:
-                    transcript = primary_display
+                    transcript = ""
 
             t7 = time.perf_counter_ns()
 
