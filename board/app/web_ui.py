@@ -2077,7 +2077,7 @@ HTML_PAGE = """<!DOCTYPE html>
         async function startVoiceRecording() {
             document.getElementById('error-message').style.display = 'none';
             document.getElementById('result-panel').style.display = 'none';
-            document.getElementById('transcript-preview').innerText = 'Recording speech...';
+            document.getElementById('transcript-preview').innerText = 'Listening for speech...';
 
             if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
                 document.getElementById('error-message').innerText = 'Microphone recording requires localhost or an HTTPS page.';
@@ -2097,10 +2097,39 @@ HTML_PAGE = """<!DOCTYPE html>
                 const silentOutput = audioContext.createGain();
                 silentOutput.gain.value = 0;
 
+                // Live Web Speech API transcription
+                let speechRec = null;
+                let spokenWords = '';
+                const SpeechRecClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (SpeechRecClass) {
+                    try {
+                        speechRec = new SpeechRecClass();
+                        speechRec.continuous = true;
+                        speechRec.interimResults = true;
+                        speechRec.lang = 'en-US';
+                        speechRec.onresult = (evt) => {
+                            let text = '';
+                            for (let i = 0; i < evt.results.length; ++i) {
+                                text += evt.results[i][0].transcript + ' ';
+                            }
+                            spokenWords = text.trim();
+                            if (spokenWords) {
+                                document.getElementById('transcript-preview').innerText = '🗣️ "' + spokenWords + '"';
+                            }
+                        };
+                        speechRec.onerror = (e) => console.log('Speech API Notice:', e.error);
+                        speechRec.start();
+                    } catch (e) {
+                        console.log('Web Speech init skipped:', e);
+                    }
+                }
+
                 activeCapture = {
                     stream, audioContext, source, processor, silentOutput,
                     chunks: [], startedAt: performance.now(), stopping: false,
-                    timer: null, autoStopTimer: null
+                    timer: null, autoStopTimer: null,
+                    speechRec,
+                    getSpokenText: () => spokenWords
                 };
 
                 processor.onaudioprocess = (event) => {
@@ -2137,6 +2166,11 @@ HTML_PAGE = """<!DOCTYPE html>
             window.clearInterval(cap.timer);
             window.clearTimeout(cap.autoStopTimer);
 
+            if (cap.speechRec) {
+                try { cap.speechRec.stop(); } catch(e) {}
+            }
+            const liveTranscript = (cap.getSpokenText ? cap.getSpokenText() : '').trim();
+
             const btn = document.getElementById('record-btn');
             btn.innerHTML = '<span>Start recording</span>';
             btn.classList.remove('is-recording');
@@ -2168,6 +2202,7 @@ HTML_PAGE = """<!DOCTYPE html>
                 engine: document.getElementById('engine-select').value,
                 filename,
                 duration_ms: durationMs,
+                transcript: liveTranscript,
                 audio_b64: bytesToBase64(wavBytes)
             });
             document.getElementById('recording-status').innerText = 'Ready (7s maximum)';
@@ -2298,8 +2333,13 @@ HTML_PAGE = """<!DOCTYPE html>
 
             const transcriptPanel = document.getElementById('res-transcript');
             if (transcriptPanel) {
-                transcriptPanel.style.display = data.mode === 'realtime' ? 'block' : 'none';
-                transcriptPanel.innerText = data.mode === 'realtime' ? (data.transcript || 'Speech processed.') : '';
+                const text = data.transcript || (data.keyword ? 'Keyword: ' + data.keyword : '');
+                if (text) {
+                    transcriptPanel.style.display = 'block';
+                    transcriptPanel.innerHTML = '<span style="font-weight:700; color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:1px; display:block; margin-bottom:4px;">Speech Transcript</span>' + text;
+                } else {
+                    transcriptPanel.style.display = 'none';
+                }
             }
 
             document.getElementById('res-acq-label').innerText = data.mode === 'passive' ? 'WAV IO' : 'Live Mic';
@@ -2596,11 +2636,12 @@ class KWSRequestHandler(http.server.SimpleHTTPRequestHandler):
             t5 = time.perf_counter_ns()
 
             # 5. Transcription (Speech-to-Text assistance when available)
-            transcript = ""
-            try:
-                transcript = transcribe_audio(audio)
-            except Exception:
-                transcript = ""
+            transcript = str(req.get("transcript", "")).strip()
+            if not transcript:
+                try:
+                    transcript = transcribe_audio(audio)
+                except Exception:
+                    transcript = ""
 
             # 6. Softmax Decoding & Multi-Keyword Detection
             t6 = time.perf_counter_ns()
@@ -2673,6 +2714,12 @@ class KWSRequestHandler(http.server.SimpleHTTPRequestHandler):
                 primary_display = best_seg["keyword"].upper()
                 best_conf = best_seg["confidence"]
                 best_class_idx = best_seg["class_idx"]
+
+            if not transcript:
+                if detected_keywords_list:
+                    transcript = " ".join(d["keyword"].upper() for d in detected_keywords_list)
+                else:
+                    transcript = primary_display
 
             t7 = time.perf_counter_ns()
 
