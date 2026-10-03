@@ -23,7 +23,11 @@ from typing import Any, Dict, List
 
 import numpy as np
 import onnxruntime as ort
-from onnxruntime.quantization import QuantType, quantize_dynamic
+try:
+    from onnxruntime.quantization import QuantType, quantize_dynamic
+except (ImportError, Exception):
+    QuantType = None
+    quantize_dynamic = None
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
