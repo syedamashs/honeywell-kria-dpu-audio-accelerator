@@ -5,8 +5,13 @@ data/processed/
 # Model weights (large)
 models/fp32/*.pth
 models/onnx/*.onnx
+!models/onnx/dscnn_medium.onnx
 models/quantized/
 models/compiled/
+
+# Presentation & PPT generated documentation (local only)
+MD-PPT/
+*.zip
 
 # Results (regenerate from notebook)
 results/raw/*.csv

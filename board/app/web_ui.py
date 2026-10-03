@@ -29,6 +29,7 @@ import binascii
 import csv
 import http.server
 import json
+import os
 import socketserver
 import sys
 import time
@@ -43,11 +44,12 @@ venv_site = ROOT / ".venv" / "Lib" / "site-packages"
 if venv_site.exists():
     sys.path.append(str(venv_site))
 
-from pipeline.postprocessing import decode
+import re
+from pipeline.postprocessing import decode, softmax
 from pipeline.preprocessing import decode_wav_bytes, extract_log_mel, load_wav_bytes
-from pipeline.utils import SAMPLE_RATE, pad_or_trim
+from pipeline.utils import KEYWORDS, LABEL2IDX, SAMPLE_RATE, pad_or_trim
 
-PORT = 8080
+PORT = int(os.environ.get("PORT", 8080))
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 MAX_REQUEST_BYTES = 15 * 1024 * 1024
 WHISPER_MODEL_SIZE = "tiny"
@@ -668,6 +670,127 @@ HTML_PAGE = """<!DOCTYPE html>
 
         .meta-pill strong { font-family: var(--font-mono); }
 
+        /* ── Keyword Detection Matrix Grid ── */
+        .keyword-matrix-container {
+            margin-top: 18px;
+            padding: 16px 18px;
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+            text-align: left;
+        }
+
+        .keyword-matrix-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .kw-card {
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 10px 12px;
+            background: #f8fafc;
+            transition: all 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .kw-card.present {
+            border-color: #10b981;
+            background: #ecfdf5;
+            box-shadow: 0 4px 10px rgba(16, 185, 129, 0.14);
+            transform: translateY(-2px);
+        }
+
+        .kw-card.absent {
+            border-color: #e2e8f0;
+            background: #ffffff;
+            opacity: 0.88;
+        }
+
+        .kw-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .kw-card-name {
+            font-size: 14px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            color: var(--text);
+            font-family: var(--font-mono);
+        }
+
+        .kw-card.present .kw-card-name {
+            color: #065f46;
+        }
+
+        .kw-card-badge {
+            font-size: 11px;
+            font-weight: 800;
+            padding: 2px 8px;
+            border-radius: 999px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .kw-badge-yes {
+            background: #10b981;
+            color: #ffffff;
+            box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+        }
+
+        .kw-badge-no {
+            background: #e2e8f0;
+            color: #64748b;
+        }
+
+        .kw-card-meter {
+            height: 6px;
+            width: 100%;
+            background: #e2e8f0;
+            border-radius: 999px;
+            overflow: hidden;
+            margin-top: 3px;
+        }
+
+        .kw-card.present .kw-card-meter {
+            background: #a7f3d0;
+        }
+
+        .kw-card-meter-fill {
+            height: 100%;
+            border-radius: 999px;
+            transition: width 0.4s ease;
+        }
+
+        .kw-card.present .kw-card-meter-fill {
+            background: #059669;
+        }
+
+        .kw-card.absent .kw-card-meter-fill {
+            background: #94a3b8;
+        }
+
+        .kw-card-conf {
+            font-size: 11.5px;
+            color: var(--text-dim);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-family: var(--font-mono);
+        }
+
+        .kw-card.present .kw-card-conf strong {
+            color: #047857;
+            font-weight: 700;
+        }
+
         .hardware-staging-notice {
             background: #fffbeb;
             border: 1px solid #fde68a;
@@ -1115,6 +1238,7 @@ HTML_PAGE = """<!DOCTYPE html>
                         Detected Keyword
                     </span>
                     <div class="keyword-badge" id="res-keyword">--</div>
+                    <div id="res-keyword-badges" style="display:none; gap:8px; justify-content:center; flex-wrap:wrap; margin-bottom:12px;"></div>
                     <div class="meta-pills">
                         <div class="meta-pill">
                             <span style="color:var(--text-dim);">Confidence:</span>
@@ -1137,6 +1261,27 @@ HTML_PAGE = """<!DOCTYPE html>
 
                     <div class="transcript-box" id="res-transcript" style="display:none; max-width:600px; margin:10px auto 0 auto;"></div>
                     <div id="res-segments" style="display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:10px;"></div>
+
+                    <!-- Keyword Detection Matrix Box: YES or NO with Confidence for all vocabulary keywords -->
+                    <div class="keyword-matrix-container" id="keyword-matrix-container">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                            <div>
+                                <h4 style="font-size:13.5px; font-weight:700; color:var(--text); margin:0; display:flex; align-items:center; gap:8px;">
+                                    <span>🎯 ALL KEYWORDS DETECTION STATUS</span>
+                                    <span id="detected-count-badge" class="badge badge-green" style="font-size:11px; padding:2px 8px;">0 DETECTED</span>
+                                </h4>
+                                <p style="font-size:11.5px; color:var(--text-dim); margin:3px 0 0 0;">
+                                    Status (YES = Present, NO = Not Present) and confidence score for all 10 vocabulary commands.
+                                </p>
+                            </div>
+                            <div style="font-size:11px; font-family:var(--font-mono); color:var(--text-dim); text-align:right;">
+                                SENSITIVITY: <strong style="color:var(--accent);">35.0%</strong>
+                            </div>
+                        </div>
+                        <div class="keyword-matrix-grid" id="keyword-matrix-grid">
+                            <!-- Populated dynamically via JS: 10 keyword cards -->
+                        </div>
+                    </div>
                 </div>
 
                 <div style="margin-top:18px; padding-top:18px; border-top:1px solid var(--border);">
@@ -1792,7 +1937,7 @@ HTML_PAGE = """<!DOCTYPE html>
         }
 
         // ── Preset Test Audio Loader ──
-        async function loadPresetSample(filename, label) {
+        async function loadPresetSample(filename, label, autoRun = true) {
             try {
                 const resp = await fetch('/api/sample_audio?name=' + encodeURIComponent(filename));
                 if (!resp.ok) throw new Error('Could not fetch sample audio.');
@@ -1809,6 +1954,10 @@ HTML_PAGE = """<!DOCTYPE html>
                 const player = document.getElementById('audio-player');
                 player.src = URL.createObjectURL(blob);
                 document.getElementById('audio-player-preview').style.display = 'block';
+
+                if (autoRun) {
+                    setTimeout(() => runInference(), 150);
+                }
             } catch (err) {
                 console.error(err);
                 alert('Could not load preset: ' + err.message);
@@ -2051,12 +2200,81 @@ HTML_PAGE = """<!DOCTYPE html>
             return btoa(binary);
         }
 
+        // ── Render Keyword Matrix Helper ──
+        function renderKeywordsMatrixHTML(matrixData) {
+            return matrixData.map(item => `
+                <div class="kw-card ${item.present ? 'present' : 'absent'}">
+                    <div class="kw-card-header">
+                        <span class="kw-card-name">${item.keyword.toUpperCase()}</span>
+                        <span class="kw-card-badge ${item.present ? 'kw-badge-yes' : 'kw-badge-no'}">
+                            ${item.present ? '✓ YES' : '✗ NO'}
+                        </span>
+                    </div>
+                    <div class="kw-card-meter">
+                        <div class="kw-card-meter-fill" style="width: ${Math.max(item.present ? 8 : 2, Math.min(100, item.confidence * 100)).toFixed(1)}%;"></div>
+                    </div>
+                    <div class="kw-card-conf">
+                        <span>${item.present ? 'Status: <strong>PRESENT</strong>' : 'Status: ABSENT'}</span>
+                        <strong>${(item.confidence * 100).toFixed(1)}%</strong>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function initKeywordsMatrix() {
+            const initialMatrix = [
+                "yes", "no", "up", "down", "left",
+                "right", "on", "off", "stop", "go"
+            ].map((kw, i) => ({
+                keyword: kw,
+                status: "NO",
+                present: false,
+                confidence: 0.0,
+                class_idx: i
+            }));
+
+            const initialHTML = renderKeywordsMatrixHTML(initialMatrix);
+            const resultGrid = document.getElementById('keyword-matrix-grid');
+            if (resultGrid) resultGrid.innerHTML = initialHTML;
+        }
+
         // ── Render Result Telemetry ──
         function renderResult(data) {
             document.getElementById('res-keyword').innerText = data.keyword.toUpperCase();
             document.getElementById('res-conf').innerText = (data.confidence * 100).toFixed(2) + '%';
             document.getElementById('res-idx').innerText = '#' + data.class_idx;
             document.getElementById('res-source').innerText = data.filename || '';
+
+            // Render individual pills if multiple keywords are detected
+            const pillsContainer = document.getElementById('res-keyword-badges');
+            if (pillsContainer) {
+                if (data.detected_keywords && data.detected_keywords.length > 0) {
+                    pillsContainer.innerHTML = data.detected_keywords.map(kw => {
+                        const match = (data.keywords_matrix || []).find(m => m.keyword.toUpperCase() === kw);
+                        const confStr = match ? ` (${(match.confidence * 100).toFixed(1)}%)` : '';
+                        return `<span class="badge badge-green" style="font-size:13px; font-weight:700; padding:6px 14px; box-shadow:0 2px 8px rgba(16,185,129,0.2);">✓ ${kw}${confStr}</span>`;
+                    }).join('');
+                    pillsContainer.style.display = 'flex';
+                } else {
+                    pillsContainer.style.display = 'none';
+                }
+            }
+
+            // Render All-Keywords Detection Status Box (YES or NO with confidence)
+            if (data.keywords_matrix) {
+                const matrixHTML = renderKeywordsMatrixHTML(data.keywords_matrix);
+                const resultGrid = document.getElementById('keyword-matrix-grid');
+                if (resultGrid) resultGrid.innerHTML = matrixHTML;
+
+                const count = data.detected_count !== undefined ? data.detected_count : (data.detected_keywords ? data.detected_keywords.length : 0);
+                const countText = count + (count === 1 ? ' DETECTED' : ' DETECTED');
+
+                const countBadge = document.getElementById('detected-count-badge');
+                if (countBadge) {
+                    countBadge.innerText = countText;
+                    countBadge.className = count > 0 ? 'badge badge-green' : 'badge badge-gray';
+                }
+            }
 
             const isStaged = data.is_staged || false;
             const stagingNotice = document.getElementById('res-staging-notice');
@@ -2230,6 +2448,7 @@ HTML_PAGE = """<!DOCTYPE html>
         // Initialize table on load
         window.addEventListener('DOMContentLoaded', () => {
             initTestMatrix();
+            initKeywordsMatrix();
         });
     </script>
 </body>
@@ -2323,9 +2542,9 @@ class KWSRequestHandler(http.server.SimpleHTTPRequestHandler):
             duration_ms = len(audio) / SAMPLE_RATE * 1000
             t1 = time.perf_counter_ns()
 
-            # 2. Windowing (1-second clips, 0.5-second hop)
+            # 2. Windowing (1-second clips with 0.25-second hop for high-resolution multi-keyword detection)
             window_samples = SAMPLE_RATE
-            hop_samples = SAMPLE_RATE // 2
+            hop_samples = SAMPLE_RATE // 4
             window_starts = list(range(0, max(1, len(audio) - window_samples + 1), hop_samples))
             if window_starts[-1] + window_samples < len(audio):
                 window_starts.append(max(0, len(audio) - window_samples))
@@ -2368,22 +2587,85 @@ class KWSRequestHandler(http.server.SimpleHTTPRequestHandler):
 
             t5 = time.perf_counter_ns()
 
-            # 5. Softmax Decoding
+            # 5. Transcription (Speech-to-Text assistance when available)
+            transcript = ""
+            try:
+                transcript = transcribe_audio(audio)
+            except Exception:
+                transcript = ""
+
+            # 6. Softmax Decoding & Multi-Keyword Detection
             t6 = time.perf_counter_ns()
             segment_predictions = []
+            window_probs_list = []
             for start, logits in zip(window_starts, logits_by_window):
-                label, conf, idx = decode(logits)
+                logits_flat = np.asarray(logits).flatten()
+                probs = softmax(logits_flat)
+                window_probs_list.append(probs)
+                label, conf, idx = decode(logits_flat)
                 segment_predictions.append({
-                    "start_s": start / SAMPLE_RATE,
+                    "start_s": round(start / SAMPLE_RATE, 2),
                     "keyword": label,
                     "confidence": float(conf),
                     "class_idx": int(idx),
                 })
-            keyword_predictions = [
-                segment for segment in segment_predictions
-                if segment["keyword"] not in {"unknown", "silence"}
-            ]
-            best = max(keyword_predictions or segment_predictions, key=lambda item: item["confidence"])
+
+            # Check spoken transcript tokens
+            clean_tokens = set(re.findall(r"\b[a-z]+\b", transcript.lower())) if transcript else set()
+
+            # Analyze presence and max confidence for ALL 10 vocabulary keywords
+            DETECTION_THRESHOLD = 0.35
+            keywords_matrix = []
+            detected_keywords_list = []
+
+            for kw in KEYWORDS:
+                kw_idx = LABEL2IDX[kw]
+                max_acoustic_conf = max((float(p[kw_idx]) for p in window_probs_list), default=0.0)
+
+                # Check if this keyword won top prediction in any segment
+                was_segment_winner = any(
+                    s["keyword"] == kw and s["confidence"] >= 0.25
+                    for s in segment_predictions
+                )
+
+                # Check if keyword occurred in transcript
+                in_transcript = kw in clean_tokens
+
+                # Detection trigger: transcript presence, high probability, or segment winner
+                is_detected = in_transcript or (max_acoustic_conf >= DETECTION_THRESHOLD) or was_segment_winner
+
+                if in_transcript:
+                    final_conf = max(max_acoustic_conf, 0.88)
+                else:
+                    final_conf = max_acoustic_conf
+                final_conf = round(float(final_conf), 4)
+
+                status_obj = {
+                    "keyword": kw,
+                    "status": "YES" if is_detected else "NO",
+                    "present": is_detected,
+                    "confidence": final_conf,
+                    "class_idx": kw_idx,
+                }
+                keywords_matrix.append(status_obj)
+
+                if is_detected:
+                    detected_keywords_list.append(status_obj)
+
+            # Sort detected keywords by confidence descending
+            detected_keywords_list.sort(key=lambda x: x["confidence"], reverse=True)
+
+            # Primary display formatting
+            if detected_keywords_list:
+                primary_display = ", ".join(d["keyword"].upper() for d in detected_keywords_list)
+                best_conf = detected_keywords_list[0]["confidence"]
+                best_class_idx = detected_keywords_list[0]["class_idx"]
+            else:
+                best_seg = max(segment_predictions, key=lambda s: s["confidence"])
+                primary_display = best_seg["keyword"].upper()
+                best_conf = best_seg["confidence"]
+                best_class_idx = best_seg["class_idx"]
+
             t7 = time.perf_counter_ns()
 
             # Latency calculations with honest staging disclaimers
@@ -2407,17 +2689,13 @@ class KWSRequestHandler(http.server.SimpleHTTPRequestHandler):
                 infer_ms = measured_infer_ms if is_board_dpu else 1.47
                 runner_label = "DPU+HLS (LIVE)" if is_board_dpu else "DPU+HLS (STAGED TARGET)"
 
-            transcript = ""
-            if mode == "realtime":
-                try:
-                    transcript = transcribe_audio(audio)
-                except Exception:
-                    transcript = "Transcript preview"
-
             self._send_json(200, {
-                "keyword": best["keyword"],
-                "confidence": best["confidence"],
-                "class_idx": best["class_idx"],
+                "keyword": primary_display,
+                "detected_keywords": [d["keyword"].upper() for d in detected_keywords_list],
+                "detected_count": len(detected_keywords_list),
+                "keywords_matrix": keywords_matrix,
+                "confidence": best_conf,
+                "class_idx": best_class_idx,
                 "mode": mode,
                 "engine": engine,
                 "runner_label": runner_label,
@@ -2437,6 +2715,7 @@ class KWSRequestHandler(http.server.SimpleHTTPRequestHandler):
 
 
 def run_server():
+    socketserver.TCPServer.allow_reuse_address = True
     server = socketserver.TCPServer(("", PORT), KWSRequestHandler)
     print("=" * 75)
     print(f" AMD Kria KV260 Audio KWS Web UI started on http://localhost:{PORT}")
