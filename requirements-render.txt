@@ -1,8 +1,8 @@
 # Lightweight requirements for fast cloud deployment (Render.com / Railway / Cloud)
+# Keeps RAM under 50MB to easily run within Render free tier (512MB limit)
 numpy>=1.24.0
 scipy>=1.10.0
 soundfile>=0.12.0
 onnx>=1.16.0
 onnxruntime>=1.16.0
-openai-whisper
 

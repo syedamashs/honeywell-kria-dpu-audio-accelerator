@@ -60,7 +60,6 @@ def transcribe_audio(audio: np.ndarray) -> str:
     global _whisper_model
     try:
         import whisper
-
         if _whisper_model is None:
             _whisper_model = whisper.load_model(WHISPER_MODEL_SIZE)
         result = _whisper_model.transcribe(
@@ -71,8 +70,8 @@ def transcribe_audio(audio: np.ndarray) -> str:
             verbose=False,
         )
         return result["text"].strip()
-    except Exception as exc:
-        raise RuntimeError(f"Whisper transcription failed: {exc}") from exc
+    except Exception:
+        return ""
 
 
 HTML_PAGE = """<!DOCTYPE html>
@@ -2026,7 +2025,13 @@ HTML_PAGE = """<!DOCTYPE html>
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-                const data = await resp.json();
+                const rawText = await resp.text();
+                let data = null;
+                try {
+                    data = JSON.parse(rawText);
+                } catch (parseErr) {
+                    throw new Error(`Server returned HTTP ${resp.status}: ${rawText.slice(0, 120) || 'Empty response (worker may have timed out)'}`);
+                }
                 if (!resp.ok) {
                     throw new Error(data.error || `Request failed (${resp.status})`);
                 }
@@ -2460,12 +2465,15 @@ class KWSRequestHandler(http.server.SimpleHTTPRequestHandler):
     """Handles HTTP requests for KWS Web UI."""
 
     def _send_json(self, status: int, payload: dict) -> None:
-        body = json.dumps(payload).encode("utf-8")
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            body = json.dumps(payload).encode("utf-8")
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        except Exception as err:
+            print(f"[ERROR] _send_json failed: {err}", file=sys.stderr)
 
     def do_GET(self):
         parsed = urlparse(self.path)
@@ -2711,6 +2719,8 @@ class KWSRequestHandler(http.server.SimpleHTTPRequestHandler):
                 "post_ms": post_ms,
             })
         except Exception as exc:
+            import traceback
+            traceback.print_exc()
             self._send_json(400, {"error": str(exc)})
 
 
