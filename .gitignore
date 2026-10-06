@@ -41,6 +41,7 @@ __pycache__/
 dist/
 build/
 *.tar.gz
+*.tar
 *.zip
 .eggs/
 

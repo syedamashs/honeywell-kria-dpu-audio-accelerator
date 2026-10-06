@@ -1,0 +1,20 @@
+# Git
+.git
+.gitignore
+
+# Python cache & environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# Large local archives and temporary files
+*.zip
+*.tar.gz
+report/
+MD-PPT/
+.ipynb_checkpoints/
+*.egg-info/
