@@ -25,11 +25,30 @@ from typing import Any, Dict, List
 import numpy as np
 
 os.environ["ORT_LOGGING_LEVEL"] = "3"
-import onnxruntime as ort
+_redirected = False
 try:
-    ort.set_default_logger_severity(3)
+    _devnull = os.open(os.devnull, os.O_WRONLY)
+    _old_stderr = os.dup(2)
+    os.dup2(_devnull, 2)
+    os.close(_devnull)
+    _redirected = True
 except Exception:
     pass
+
+try:
+    import onnxruntime as ort
+    try:
+        ort.set_default_logger_severity(3)
+    except Exception:
+        pass
+finally:
+    if _redirected:
+        try:
+            os.dup2(_old_stderr, 2)
+            os.close(_old_stderr)
+        except Exception:
+            pass
+
 try:
     from onnxruntime.quantization import QuantType, quantize_dynamic
 except (ImportError, Exception):

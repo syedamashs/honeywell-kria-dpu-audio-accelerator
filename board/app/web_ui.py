@@ -4532,12 +4532,29 @@ def run_server():
 
     # Pre-warm ARM Cortex-A53 CPU ONNX runner
     try:
-        from benchmarks.cpu_baseline import CPUModelRunner
         onnx_p = ROOT / "models" / "onnx" / "dscnn_medium.onnx"
         if onnx_p.exists():
             print("[*] Pre-warming ARM Cortex-A53 CPU ONNX Runner...", flush=True)
-            _cached_cpu_runner = CPUModelRunner(onnx_p)
-            _cached_cpu_runner(np.zeros((40, 98), dtype=np.float32))
+            _red = False
+            try:
+                _dn = os.open(os.devnull, os.O_WRONLY)
+                _err = os.dup(2)
+                os.dup2(_dn, 2)
+                os.close(_dn)
+                _red = True
+            except Exception:
+                pass
+            try:
+                from benchmarks.cpu_baseline import CPUModelRunner
+                _cached_cpu_runner = CPUModelRunner(onnx_p)
+                _cached_cpu_runner(np.zeros((40, 98), dtype=np.float32))
+            finally:
+                if _red:
+                    try:
+                        os.dup2(_err, 2)
+                        os.close(_err)
+                    except Exception:
+                        pass
             print("[*] >>> SUCCESS: ARM CPU ONNX Runner pre-warmed! <<<", flush=True)
     except Exception as exc:
         print(f"[*] Note on CPU pre-warming: {exc}", flush=True)
