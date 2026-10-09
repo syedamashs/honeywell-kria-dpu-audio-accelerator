@@ -38,6 +38,30 @@ def check_physical_hardware():
         print("[!] Permission denied. Please run with sudo: 'sudo python3 benchmarks/check_hls_hardware.py'")
         return
 
+    print("[*] Checking currently loaded FPGA bitstream in PL...")
+    active_fw = ""
+    try:
+        if os.path.exists("/sys/class/fpga_manager/fpga0/firmware"):
+            with open("/sys/class/fpga_manager/fpga0/firmware", "r") as f:
+                active_fw = f.read().strip()
+    except Exception:
+        pass
+
+    print(f"[*] Active FPGA Bitstream: '{active_fw or 'None'}'")
+
+    if "config-c" not in active_fw.lower() and "audio_dp" not in active_fw.lower():
+        print("\n" + "=" * 75)
+        print(" [!] NOTICE: The current bitstream in PL is for the DPU (kv260-benchmark-b4096)!")
+        print(" The Mel GEMM HLS IP + DMA are NOT mapped in this bitstream.")
+        print(" (Probing unmapped AXI addresses will hang the ARM CPU bus.)")
+        print(" ")
+        print(" To probe the physical Mel GEMM HLS registers, load your HLS bitstream:")
+        print("   sudo xmutil unloadapp")
+        print("   sudo xmutil loadapp kv260-kws-config-c")
+        print("   sudo python3 benchmarks/check_hls_hardware.py")
+        print("=" * 75)
+        return
+
     print("[*] Probing Physical Memory Bus via /dev/mem...")
 
     # 1. Probe Mel GEMM HLS Core (0x00A0010000)

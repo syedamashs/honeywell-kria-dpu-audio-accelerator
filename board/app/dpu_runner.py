@@ -152,13 +152,17 @@ class VARTDPURunner:
             pass
 
         if not dpu_present:
-            print("[*] [VART] DPU hardware not detected in PL fabric. Attempting xmutil loadapp kv260-smartcam...", flush=True)
+            print("[*] [VART] DPU hardware not detected in PL fabric. Attempting xmutil loadapp kv260-benchmark-b4096...", flush=True)
             try:
                 import subprocess
-                res = subprocess.run(["xmutil", "loadapp", "kv260-smartcam"], capture_output=True, text=True)
-                if res.returncode != 0:
+                for target_app in ["kv260-benchmark-b4096", "kv260-smartcam"]:
+                    res = subprocess.run(["xmutil", "loadapp", target_app], capture_output=True, text=True)
+                    if res.returncode == 0:
+                        break
                     subprocess.run(["xmutil", "unloadapp"], capture_output=True)
-                    subprocess.run(["xmutil", "loadapp", "kv260-smartcam"], capture_output=True)
+                    res = subprocess.run(["xmutil", "loadapp", target_app], capture_output=True, text=True)
+                    if res.returncode == 0:
+                        break
                 time.sleep(1.0)
                 if os.path.exists("/proc/interrupts"):
                     with open("/proc/interrupts", "r") as f:
@@ -170,7 +174,7 @@ class VARTDPURunner:
             if not dpu_present and not os.path.exists("/dev/dri/renderD128"):
                 raise RuntimeError(
                     "DPU hardware is not loaded into FPGA PL fabric. "
-                    "Please run: sudo xmutil loadapp kv260-smartcam"
+                    "Please run: sudo xmutil loadapp kv260-benchmark-b4096"
                 )
 
         print(f"[*] [VART] Binding to physical DPU core: {self.dpu_subgraph.get_name()}...")

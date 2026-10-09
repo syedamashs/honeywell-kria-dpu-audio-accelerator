@@ -60,19 +60,21 @@ DMA_S2MM_LENGTH     = 0x58  # S2MM Receive Length (bytes) -> Starts receive
 
 
 def probe_hardware_available() -> bool:
-    """Checks if physical PL memory address for Mel HLS is accessible via /dev/mem."""
-    if not os.path.exists("/dev/mem"):
-        return False
+    """
+    Checks if physical PL memory address for Mel HLS is accessible.
+    Safe check: Only returns True if the dedicated HLS firmware is loaded in PL.
+    Prevents AXI bus lockups when the DPU bitstream is loaded.
+    """
     try:
-        with open("/dev/mem", "r+b") as f:
-            # Try mapping a single page at the HLS base
-            mem = mmap.mmap(f.fileno(), 4096, offset=MEL_HLS_BASE)
-            # Read first 4 bytes
-            val = struct.unpack("<I", mem[:4])[0]
-            mem.close()
-            return True
+        fw_path = "/sys/class/fpga_manager/fpga0/firmware"
+        if os.path.exists(fw_path):
+            with open(fw_path, "r") as f:
+                fw = f.read().strip().lower()
+                if "config-c" in fw or "audio_dp" in fw:
+                    return True
     except Exception:
-        return False
+        pass
+    return False
 
 
 class HLSMelRunner:
