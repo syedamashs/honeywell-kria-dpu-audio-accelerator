@@ -138,6 +138,41 @@ class VARTDPURunner:
             raise RuntimeError(f"No DPU subgraph found in {self.xmodel_path}")
 
         self.dpu_subgraph = dpu_subgraphs[0]
+
+        # Check if DPU device is present in PL to avoid C++ abort in dpu_controller
+        dpu_present = False
+        try:
+            if os.path.exists("/proc/interrupts"):
+                with open("/proc/interrupts", "r") as f:
+                    if "zocl" in f.read().lower():
+                        dpu_present = True
+            if os.path.exists("/sys/class/zocl") or os.path.exists("/dev/dri/renderD128"):
+                dpu_present = True
+        except Exception:
+            pass
+
+        if not dpu_present:
+            print("[*] [VART] DPU hardware not detected in PL fabric. Attempting xmutil loadapp kv260-smartcam...", flush=True)
+            try:
+                import subprocess
+                res = subprocess.run(["xmutil", "loadapp", "kv260-smartcam"], capture_output=True, text=True)
+                if res.returncode != 0:
+                    subprocess.run(["xmutil", "unloadapp"], capture_output=True)
+                    subprocess.run(["xmutil", "loadapp", "kv260-smartcam"], capture_output=True)
+                time.sleep(1.0)
+                if os.path.exists("/proc/interrupts"):
+                    with open("/proc/interrupts", "r") as f:
+                        if "zocl" in f.read().lower():
+                            dpu_present = True
+            except Exception as load_err:
+                print(f"[!] [VART] xmutil auto-load error: {load_err}", flush=True)
+
+            if not dpu_present and not os.path.exists("/dev/dri/renderD128"):
+                raise RuntimeError(
+                    "DPU hardware is not loaded into FPGA PL fabric. "
+                    "Please run: sudo xmutil loadapp kv260-smartcam"
+                )
+
         print(f"[*] [VART] Binding to physical DPU core: {self.dpu_subgraph.get_name()}...")
         self.runner = vart.Runner.create_runner(self.dpu_subgraph, "run")
         print("    >>> SUCCESS: VART Runner Bound to Physical FPGA DPU! <<<")
