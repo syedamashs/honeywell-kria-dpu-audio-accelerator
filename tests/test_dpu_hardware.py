@@ -2,8 +2,16 @@ import os
 import sys
 import glob
 import time
+import shutil
 import subprocess
 import numpy as np
+
+try:
+    import pytest
+    if shutil.which("xmutil") is None and not os.path.exists("/usr/lib/dpu.xclbin"):
+        pytest.skip("Physical AMD Kria KV260 board required for DPU hardware verification", allow_module_level=True)
+except Exception:
+    pass
 
 print("\n" + "=" * 65)
 print("     AMD KRIA KV260 -- CONFIG B DS-CNN DPU PIPELINE TEST")
@@ -55,11 +63,11 @@ os.environ["XLNX_ENABLE_FINGERPRINT_CHECK"] = "0"
 import xir
 import vart
 
-# 4. Locate DSCNN model file
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 model_candidates = [
+    os.path.join(ROOT_DIR, "models", "compiled", "dscnn_medium.xmodel"),
     "models/compiled/dscnn_medium.xmodel",
     "dscnn_medium.xmodel",
-    "models/nndct_xmodel/RecoveredDSCNN_int.xmodel",
     "../models/compiled/dscnn_medium.xmodel"
 ]
 

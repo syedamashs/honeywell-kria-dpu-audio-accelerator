@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Copy dependency definition and install Python packages
-COPY requirements-docker.txt /app/requirements-docker.txt
+COPY docker/requirements-docker.txt /app/requirements-docker.txt
 RUN pip install --no-cache-dir -r requirements-docker.txt
 
 # Copy application source code, models, audio test samples, scripts, and FPGA hardware package
@@ -31,9 +31,10 @@ COPY benchmarks/ /app/benchmarks/
 COPY models/ /app/models/
 COPY data/test_inputs/ /app/data/test_inputs/
 COPY scripts/ /app/scripts/
+COPY tests/ /app/tests/
 COPY hls/ /app/hls/
 COPY vivado/ /app/vivado/
-COPY CONFIG_C_HARDWARE_PACKAGE.md /app/CONFIG_C_HARDWARE_PACKAGE.md
+COPY docs/ /app/docs/
 COPY README.md /app/README.md
 
 # Expose the Web Dashboard port

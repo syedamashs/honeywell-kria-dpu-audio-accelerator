@@ -22,7 +22,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from pipeline.gemm_reference import (
     GEMMPipeline,

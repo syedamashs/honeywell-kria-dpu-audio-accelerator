@@ -28,6 +28,8 @@ INCLUDED_ITEMS = [
     "pipeline",
     "board",
     "benchmarks",
+    "tests",
+    "docs",
     "data/test_inputs",
     "models/onnx",
     "models/compiled",
@@ -58,6 +60,12 @@ def make_package():
 
     size_mb = OUTPUT_ARCHIVE.stat().st_size / (1024 * 1024)
     print(f"\n[OK] Package created: {OUTPUT_ARCHIVE} ({size_mb:.2f} MB)")
+
+    # Also keep deploy_kws_dpu.tar.gz in sync for HTTP server
+    kws_archive = ROOT / "deploy_kws_dpu.tar.gz"
+    import shutil
+    shutil.copyfile(OUTPUT_ARCHIVE, kws_archive)
+    print(f"[OK] Synced {kws_archive.name}")
     print("Transfer to KV260 via SCP:")
     print(f"  scp {OUTPUT_ARCHIVE.name} ubuntu@<kv260-ip>:~/")
     print("On the KV260, unpack and run:")

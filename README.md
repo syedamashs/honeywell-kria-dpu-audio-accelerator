@@ -24,7 +24,7 @@ This repository delivers an end-to-end, hardware-accelerated **Audio AI/ML Keywo
 2. **Config B — CPU + DPU**: Hardware-accelerated neural inference executing on the **AMD Xilinx DPUCZDX8G IP core** via Vitis AI / VART runtime @ 300 MHz.
 3. **Config C — CPU + DPU + Custom Mel GEMM HLS Kernel**: Full heterogeneous FPGA pipeline accelerating both the feature extraction bottleneck and neural inference in programmable logic.
 
-> ⚠️ **Hardware Board Availability Notice**: Due to physical AMD Kria KV260 board unavailability during evaluation, the complete synthesizable Vitis HLS C++ kernel ([`hls/mel_gemm/`](hls/mel_gemm/)), C-simulation testbenches, Vivado block design TCL automation scripts ([`vivado/kv260_dpu_plus_kernel/`](vivado/kv260_dpu_plus_kernel/)), and FPGA resource utilization budgets are fully provided. See [**`CONFIG_C_HARDWARE_PACKAGE.md`**](CONFIG_C_HARDWARE_PACKAGE.md) for the complete hardware manifest and synthesis guide.
+> ⚠️ **Hardware Board Availability Notice**: Due to physical AMD Kria KV260 board unavailability during evaluation, the complete synthesizable Vitis HLS C++ kernel ([`hls/mel_gemm/`](hls/mel_gemm/)), C-simulation testbenches, Vivado block design TCL automation scripts ([`vivado/kv260_dpu_plus_kernel/`](vivado/kv260_dpu_plus_kernel/)), and FPGA resource utilization budgets are fully provided. See [**`docs/CONFIG_C_HARDWARE_PACKAGE.md`**](docs/CONFIG_C_HARDWARE_PACKAGE.md) for the complete hardware manifest and synthesis guide.
 
 ---
 
@@ -171,19 +171,19 @@ Open **`http://localhost:8080`** in your browser to interact with the full 5-tab
 
 ### 2. Run the Comprehensive Verification Test Suite
 ```bash
-# Execute all 51 automated tests (preprocessing, model parity, GEMM equivalence)
-pytest pipeline/tests/ -q
+# Execute all automated tests (preprocessing, model parity, GEMM equivalence, DPU test)
+pytest tests/ -v
 ```
 
 ### 3. Deploy to the Physical AMD Kria KV260 Board
 ```bash
 # On the KV260 board terminal:
 sudo xmutil unloadapp
-sudo xmutil loadapp kv260-kws-dpu
+sudo xmutil loadapp kv260-benchmark-b4096
 
 # Extract deployment package and launch board accelerator
-tar -xzvf deploy_kria_kv260.tar.gz
-python3 board/app/web_ui.py
+tar -xzf deploy_kws_dpu.tar.gz
+sudo python3 board/app/web_ui.py
 ```
 
 ---
@@ -191,32 +191,61 @@ python3 board/app/web_ui.py
 ## 📂 Repository Directory Layout
 
 ```
-├── board/
+├── board/                      # Board deployment & runtime software (AMD Kria KV260)
 │   └── app/
-│       ├── web_ui.py           # 5-Tab Portfolio Dashboard & multi-engine server
+│       ├── web_ui.py           # 5-Tab Portfolio Dashboard (Live HW Flow, Analytics, History)
 │       ├── dpu_runner.py       # Vitis AI / VART DPU board execution harness
-│       └── demo.py             # CLI demonstration runner
-├── pipeline/
-│   ├── preprocessing.py        # 16kHz audio framing, FFT, and Slaney Mel filterbank GEMM
-│   ├── model.py                # DS-CNN (Small, Medium, Large) + recurrent fallback variants
+│       ├── demo.py             # CLI demonstration runner
+│       └── preview.html        # Standalone offline dashboard preview
+├── pipeline/                   # Core DSP audio algorithms & deep learning pipelines
+│   ├── preprocessing.py        # 16kHz audio framing, FFT, and Slaney Mel filterbank
+│   ├── model.py                # DS-CNN (Small, Medium, Large) PyTorch/ONNX architectures
+│   ├── postprocessing.py       # Softmax classification and top-1 argmax confidence scoring
+│   ├── audio_stream.py         # Real-time microphone buffer and passive audio loader
 │   ├── gemm_reference.py       # Algorithmic proof reducing all stages to matrix multiplication
-│   ├── dpu_performance_model.py# Analytical Roofline model for DPUCZDX8G @ 300MHz
-│   └── tests/                  # 51 unit tests verifying mathematical and numerical parity
-├── hls/
-│   └── mel_gemm/               # Custom C++ Vivado HLS streaming Mel GEMM accelerator (II=1)
-├── vivado/                     # Vivado block design TCL automation scripts and resource reports
-├── models/
-│   ├── onnx/                   # Exported INT8/FP32 ONNX computational graphs
-│   └── compiled/               # Compiled .xmodel targeting DPUCZDX8G
-├── data/
-│   └── test_inputs/            # 10 standardized speech evaluation WAV clips and test manifest
-├── results/
-│   ├── raw/                    # Raw CPU and DPU latency CSV logs
-│   ├── profiler/               # cProfile CPU hotspot traces
-│   └── plots/                  # Generated benchmark and distribution figures
-└── report/
+│   └── dpu_performance_model.py# Analytical Roofline model for DPUCZDX8G @ 300MHz
+├── hls/                        # Vitis HLS Hardware Accelerators (Config C)
+│   └── mel_gemm/               # Synthesizable C++ streaming Mel GEMM accelerator (II=1)
+├── vivado/                     # Vivado FPGA projects, block designs, and overlays
+│   ├── Honeywell.xpr           # Vivado top project for AMD Kria KV260
+│   ├── bitstream.bif           # Bootgen bitstream packaging definition
+│   ├── kv260_dpu_only/         # DPU-only overlay TCL build automation
+│   ├── kv260_dpu_plus_kernel/  # DPU + HLS custom kernel overlay TCL build automation
+│   └── resource_utilization_report.md # FPGA LUT / BRAM / DSP / URAM utilization
+├── models/                     # Trained neural network graphs and weights
+│   ├── onnx/                   # Exported INT8 / FP32 ONNX computational graphs
+│   └── compiled/               # Compiled .xmodel targeting DPUCZDX8G B4096
+├── data/                       # Datasets & validation test audio
+│   ├── test_inputs/            # Standardized speech evaluation WAV clips and test manifest
+│   └── synthetic/              # Synthetic keyword generation samples
+├── benchmarks/                 # Automated benchmarking harnesses & profiling
+│   ├── harness.py              # Multi-configuration automated benchmarking harness
+│   ├── cpu_baseline.py         # Config A standalone CPU benchmark
+│   └── profile_cpu.py          # Execution profiling and hotspot analysis
+├── tests/                      # Verification and validation test suites
+│   ├── test_preprocessing.py   # Mel-filterbank DSP numerical parity tests
+│   ├── test_gemm_reference.py  # GEMM equivalence and MAC calculation tests
+│   ├── test_audio_stream.py    # Audio capture and waveform loading tests
+│   └── test_dpu_hardware.py    # Physical VART FPGA DPU execution verification
+├── scripts/                    # Quantization, compilation & automation utilities
+│   ├── calibrate_nndct.py      # PyTorch NNDCT calibration utility
+│   ├── quantize_onnx.py        # ONNX INT8 quantization script
+│   ├── recover_from_onnx.py    # PyTorch model recovery and weights extraction
+│   ├── export_xmodel.py        # Vitis AI compilation script
+│   └── package_for_board.py    # Deployment bundle generator for KV260
+├── docs/                       # Technical architecture guides & deployment specs
+│   ├── CONFIG_C_HARDWARE_PACKAGE.md            # Hardware package & AXI driver spec
+│   ├── KV260_KWS_WORKFLOW_AND_DEPLOYMENT_GUIDE.md # Complete deployment guide
+│   └── DOCKER_DEPLOYMENT_GUIDE.md              # Containerization & cloud run guide
+├── docker/                     # Docker container build scripts & environments
+│   ├── docker_build.bat        # Windows Docker build script
+│   ├── docker_build.sh         # Linux/macOS Docker build script
+│   └── requirements-docker.txt # Production container dependencies
+└── report/                     # Competition deliverables & analysis
     ├── main_notebook.ipynb     # Reproducible Jupyter walkthrough
-    └── operator_support_map.md # Supported vs. unsupported operator compatibility documentation
+    ├── bottleneck_analysis.md  # Roofline latency bottleneck breakdown
+    ├── partition_map.md        # Hardware / software partitioning matrix
+    └── operator_support_map.md # Supported vs. unsupported operator compatibility
 ```
 
 ---

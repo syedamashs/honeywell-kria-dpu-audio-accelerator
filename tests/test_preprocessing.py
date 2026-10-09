@@ -23,7 +23,7 @@ import numpy as np
 import pytest
 import scipy.io.wavfile as wav_io
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from pipeline.preprocessing import (
     build_mel_filterbank,

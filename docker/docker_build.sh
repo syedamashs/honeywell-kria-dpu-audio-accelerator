@@ -17,8 +17,11 @@ if ! command -v docker &>/dev/null; then
     exit 1
 fi
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
 echo "[1/3] Building Docker image (${FULL_IMAGE})..."
-docker build -t "${IMAGE_NAME}:${TAG}" -t "${FULL_IMAGE}" .
+docker build -t "${IMAGE_NAME}:${TAG}" -t "${FULL_IMAGE}" -f "${ROOT_DIR}/Dockerfile" "${ROOT_DIR}"
 
 echo ""
 echo "[2/3] Build completed successfully!"

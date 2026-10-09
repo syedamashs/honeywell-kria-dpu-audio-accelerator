@@ -14,9 +14,11 @@ set IMAGE_NAME=kria-kv260-kws
 set TAG=latest
 set FULL_IMAGE=%DOCKER_USER%/%IMAGE_NAME%:%TAG%
 
+set ROOT_DIR=%~dp0..
+
 echo.
 echo [1/3] Building Docker image (%FULL_IMAGE%)...
-docker build -t %IMAGE_NAME%:%TAG% -t %FULL_IMAGE% .
+docker build -t %IMAGE_NAME%:%TAG% -t %FULL_IMAGE% -f "%ROOT_DIR%\Dockerfile" "%ROOT_DIR%"
 
 if %ERRORLEVEL% NEQ 0 (
     echo [!] Docker build failed! Ensure Docker Desktop is installed and running.

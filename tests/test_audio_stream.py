@@ -20,7 +20,7 @@ from pipeline.audio_stream import (
 from pipeline.preprocessing import extract_log_mel
 from pipeline.utils import SAMPLE_RATE
 
-TEST_WAV = Path(__file__).resolve().parent.parent.parent / "data" / "test_inputs" / "test_00_yes.wav"
+TEST_WAV = Path(__file__).resolve().parent.parent / "data" / "test_inputs" / "test_00_yes.wav"
 
 
 class TestPassiveAudioLoader:
