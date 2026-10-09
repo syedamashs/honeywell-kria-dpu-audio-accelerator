@@ -2425,10 +2425,10 @@ HTML_PAGE = """<!DOCTYPE html>
                             <div>
                                 <div style="display:flex; align-items:center; gap:8px;">
                                     <span class="pipeline-chip" style="background:#e0f2fe; color:#0369a1; border-color:#bae6fd;">HARDWARE LATENCY PROFILE</span>
-                                    <span style="font-weight: 800; font-size: 13.5px; color: #0f172a; font-family: var(--font-display);">End-to-End Execution Delay &amp; Cumulative Latency Progression (T₀ ➜ T₁ ➜ T₂ ➜ T₃ ➜ T₄)</span>
+                                    <span style="font-weight: 800; font-size: 13.5px; color: #0f172a; font-family: var(--font-display);">Per-Stage Execution Delay Profile (Audio Ingestion ➜ Mel Preproc ➜ Neural Core ➜ Softmax Decode)</span>
                                 </div>
                                 <div style="font-size: 11.5px; color: #64748b; margin-top: 3px;">
-                                    Real-time millisecond accumulation across pipeline boundaries · Dynamically driven by active stage card measurements
+                                    Individual latency per stage (non-cumulative) · Accurately reflects each active stage box measurement
                                 </div>
                             </div>
                             <div class="delay-graph-header-metrics">
@@ -4275,6 +4275,27 @@ HTML_PAGE = """<!DOCTYPE html>
             lastDelayData = { load_ms: l_ms, preproc_ms: pr_ms, infer_ms: inf_ms, post_ms: po_ms, engine: eng };
 
             const total_ms = l_ms + pr_ms + inf_ms + po_ms;
+            const stageDeltas = [l_ms, pr_ms, inf_ms, po_ms];
+            const stageNames = ["Audio Ingestion", "Mel Preproc", "DS-CNN Core", "Softmax Decode"];
+            const stageHW = [
+                "HOST CPU",
+                (eng === "dpu_hls" || eng === "hls" || eng === "custom_dpu") ? "FPGA HLS" : "HOST CPU",
+                (eng === "custom_dpu") ? "CUSTOM DPU" : (eng === "cpu" ? "HOST CPU" : "FPGA DPU"),
+                "HOST CPU"
+            ];
+            const stageColors = [
+                "#38bdf8",
+                (eng === "dpu_hls" || eng === "hls" || eng === "custom_dpu") ? "#10b981" : "#0284c7",
+                (eng === "cpu") ? "#f59e0b" : ((eng === "custom_dpu") ? "#a855f7" : "#10b981"),
+                "#06b6d4"
+            ];
+            const stageFillColors = [
+                "rgba(56, 189, 248, 0.42)",
+                (eng === "dpu_hls" || eng === "hls" || eng === "custom_dpu") ? "rgba(16, 185, 129, 0.42)" : "rgba(2, 132, 199, 0.42)",
+                (eng === "cpu") ? "rgba(245, 158, 11, 0.42)" : ((eng === "custom_dpu") ? "rgba(168, 85, 247, 0.42)" : "rgba(16, 185, 129, 0.42)"),
+                "rgba(6, 182, 212, 0.42)"
+            ];
+
             const engBadge = document.getElementById("delay-graph-engine-badge");
             const totBadge = document.getElementById("delay-graph-total-badge");
             if (engBadge) {
@@ -4293,7 +4314,7 @@ HTML_PAGE = """<!DOCTYPE html>
                 }
             }
             if (totBadge) {
-                totBadge.innerText = "Cumulative Delay: " + total_ms.toFixed(2) + " ms (" + (1000.0 / total_ms).toFixed(1) + " FPS)";
+                totBadge.innerText = "Total Latency: " + total_ms.toFixed(2) + " ms (" + (1000.0 / total_ms).toFixed(1) + " FPS)";
             }
 
             // High DPI Canvas Scaling
@@ -4310,7 +4331,7 @@ HTML_PAGE = """<!DOCTYPE html>
             const padL = 60;
             const padR = 40;
             const padT = 38;
-            const padB = 42;
+            const padB = 44;
             const plotW = W - padL - padR;
             const plotH = H - padT - padB;
 
@@ -4318,11 +4339,13 @@ HTML_PAGE = """<!DOCTYPE html>
             ctx.fillStyle = "#090d16";
             ctx.fillRect(0, 0, W, H);
 
-            // Dynamic Y scale
-            const maxY = Math.max(1.8, total_ms * 1.18);
+            // Dynamic Y scale based on MAXIMUM INDIVIDUAL STAGE DELAY (strictly non-cumulative)
+            const maxStageVal = Math.max.apply(null, stageDeltas);
+            const maxY = Math.max(0.5, maxStageVal * 1.35);
             function yFor(val) {
-                return padT + plotH * (1.0 - (val / maxY));
+                return padT + plotH * (1.0 - (Math.min(val, maxY) / maxY));
             }
+            const yZero = yFor(0.0);
 
             // Grid lines & Y-axis labels
             const ySteps = 4;
@@ -4340,154 +4363,158 @@ HTML_PAGE = """<!DOCTYPE html>
                 ctx.lineTo(W - padR, y);
                 ctx.stroke();
 
-                ctx.fillText(val.toFixed(val >= 10 ? 0 : 1) + " ms", padL - 8, y + 3.5);
+                const lbl = val >= 10 ? val.toFixed(0) + " ms" : (val >= 1 ? val.toFixed(1) + " ms" : val.toFixed(2) + " ms");
+                ctx.fillText(lbl, padL - 8, y + 3.5);
             }
 
-            // X coordinates for 4 stages
-            const xs = [
-                padL,
-                padL + plotW * 0.25,
-                padL + plotW * 0.50,
-                padL + plotW * 0.75,
-                padL + plotW * 1.00
-            ];
+            // Stage Columns (4 equal partitions aligned with the 4 stage boxes above)
+            const colW = plotW / 4;
+            const xs = [0, 1, 2, 3].map(function(i) {
+                return padL + colW * (i + 0.5);
+            });
+            const ys = stageDeltas.map(function(d) {
+                return yFor(d);
+            });
 
-            // Cumulative millisecond milestones
-            const t0 = 0.0;
-            const t1 = l_ms;
-            const t2 = t1 + pr_ms;
-            const t3 = t2 + inf_ms;
-            const t4 = t3 + po_ms;
-            const times = [t0, t1, t2, t3, t4];
-            const ys = [yFor(t0), yFor(t1), yFor(t2), yFor(t3), yFor(t4)];
-
-            // Alternating Stage Column Shading & Vertical Separators
+            // Stage Column Alternating Shading & Separators
             for (let i = 0; i < 4; i++) {
+                const colLeft = padL + colW * i;
                 if (i % 2 === 1) {
                     ctx.fillStyle = "rgba(255, 255, 255, 0.015)";
-                    ctx.fillRect(xs[i], padT, xs[i+1] - xs[i], plotH);
+                    ctx.fillRect(colLeft, padT, colW, plotH);
                 }
-                ctx.strokeStyle = "rgba(51, 65, 85, 0.6)";
+                if (i > 0) {
+                    ctx.strokeStyle = "rgba(51, 65, 85, 0.5)";
+                    ctx.setLineDash([3, 3]);
+                    ctx.beginPath();
+                    ctx.moveTo(colLeft, padT);
+                    ctx.lineTo(colLeft, padT + plotH);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+            }
+
+            // Ghost Speedup Targets when observing Config A (CPU)
+            if (eng === "cpu" && maxY > 10) {
+                // Mel HLS target baseline on stage 1
+                const hlsTargetY = yFor(0.35);
+                ctx.strokeStyle = "rgba(16, 185, 129, 0.6)";
+                ctx.lineWidth = 1.2;
                 ctx.setLineDash([3, 3]);
                 ctx.beginPath();
-                ctx.moveTo(xs[i+1], padT);
-                ctx.lineTo(xs[i+1], padT + plotH);
+                ctx.moveTo(padL + colW * 0.1, hlsTargetY);
+                ctx.lineTo(padL + colW * 1.9, hlsTargetY);
                 ctx.stroke();
-                ctx.setLineDash([]);
-            }
-
-            // Ghost Benchmark Curve for FPGA DPU+HLS (1.87 ms) when observing Host CPU
-            if (eng === "cpu" && maxY > 10) {
-                const ghT = [0, 0.27, 0.27 + 0.35, 0.27 + 0.35 + 1.47, 0.27 + 0.35 + 1.47 + 0.05];
-                ctx.strokeStyle = "rgba(16, 185, 129, 0.4)";
-                ctx.lineWidth = 1.5;
-                ctx.setLineDash([4, 4]);
-                ctx.beginPath();
-                ctx.moveTo(xs[0], yFor(ghT[0]));
-                for (let i = 1; i <= 4; i++) {
-                    const mx = (xs[i-1] + xs[i]) / 2;
-                    ctx.bezierCurveTo(mx, yFor(ghT[i-1]), mx, yFor(ghT[i]), xs[i], yFor(ghT[i]));
-                }
-                ctx.stroke();
-                ctx.setLineDash([]);
-
                 ctx.fillStyle = "#10b981";
-                ctx.font = "9px JetBrains Mono";
-                ctx.textAlign = "right";
-                ctx.fillText("⚡ FPGA DPU+HLS Target Baseline (1.87 ms · 33.4×)", W - padR - 8, yFor(ghT[4]) - 6);
+                ctx.font = "8.5px JetBrains Mono";
+                ctx.textAlign = "left";
+                ctx.fillText("⚡ HLS: 0.35 ms (5.5×)", padL + colW * 1.05, hlsTargetY - 4);
+
+                // DPU target baseline on stage 2
+                const dpuTargetY = yFor(1.47);
+                ctx.beginPath();
+                ctx.moveTo(padL + colW * 1.6, dpuTargetY);
+                ctx.lineTo(padL + colW * 3.4, dpuTargetY);
+                ctx.stroke();
+                ctx.fillText("⚡ DPU: 1.47 ms (27.9×)", padL + colW * 2.05, dpuTargetY - 4);
+                ctx.setLineDash([]);
             }
 
-            // Glowing Area Fill Under Curve
-            const grad = ctx.createLinearGradient(0, padT, 0, padT + plotH);
-            if (eng === "cpu") {
-                grad.addColorStop(0, "rgba(59, 130, 246, 0.32)");
-                grad.addColorStop(1, "rgba(59, 130, 246, 0.01)");
-            } else if (eng === "dpu") {
-                grad.addColorStop(0, "rgba(245, 158, 11, 0.32)");
-                grad.addColorStop(1, "rgba(245, 158, 11, 0.01)");
-            } else if (eng === "dpu_hls" || eng === "hls") {
-                grad.addColorStop(0, "rgba(16, 185, 129, 0.32)");
-                grad.addColorStop(1, "rgba(16, 185, 129, 0.01)");
-            } else {
-                grad.addColorStop(0, "rgba(139, 92, 246, 0.32)");
-                grad.addColorStop(1, "rgba(139, 92, 246, 0.01)");
+            // ── Individual Stage Neon Bars (Pillars) ──
+            const barW = Math.min(68, colW * 0.46);
+            for (let i = 0; i < 4; i++) {
+                const cx = xs[i];
+                const bx = cx - barW / 2;
+                const by = ys[i];
+                const bh = Math.max(3, yZero - by);
+                const color = stageColors[i];
+
+                // Vertical glowing gradient for individual pillar
+                const barGrad = ctx.createLinearGradient(0, by, 0, yZero);
+                barGrad.addColorStop(0, stageFillColors[i]);
+                barGrad.addColorStop(1, "rgba(15, 23, 42, 0.04)");
+
+                ctx.fillStyle = barGrad;
+                ctx.beginPath();
+                if (ctx.roundRect) {
+                    ctx.roundRect(bx, by, barW, bh, [6, 6, 0, 0]);
+                } else {
+                    ctx.rect(bx, by, barW, bh);
+                }
+                ctx.fill();
+
+                // Pillar border
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1.2;
+                ctx.stroke();
+
+                // Glowing top cap highlight
+                ctx.beginPath();
+                ctx.moveTo(bx, by);
+                ctx.lineTo(bx + barW, by);
+                ctx.strokeStyle = "#ffffff";
+                ctx.lineWidth = 2;
+                ctx.shadowColor = color;
+                ctx.shadowBlur = 8;
+                ctx.stroke();
+                ctx.shadowBlur = 0;
             }
 
-            ctx.beginPath();
-            ctx.moveTo(xs[0], yFor(0));
-            ctx.lineTo(xs[0], ys[0]);
-            for (let i = 1; i <= 4; i++) {
-                const mx = (xs[i-1] + xs[i]) / 2;
-                ctx.bezierCurveTo(mx, ys[i-1], mx, ys[i], xs[i], ys[i]);
-            }
-            ctx.lineTo(xs[4], yFor(0));
-            ctx.closePath();
-            ctx.fillStyle = grad;
-            ctx.fill();
-
-            // Main Stepping Latency Curve
+            // ── Smooth Profile Contour Spline across Stage Peaks ──
             const strokeColor = eng === "cpu" ? "#38bdf8" : (eng === "dpu" ? "#f59e0b" : (eng === "dpu_hls" || eng === "hls" ? "#10b981" : "#a855f7"));
             ctx.strokeStyle = strokeColor;
-            ctx.lineWidth = 3;
+            ctx.lineWidth = 2.5;
             ctx.shadowColor = strokeColor;
-            ctx.shadowBlur = 10;
-
+            ctx.shadowBlur = 8;
             ctx.beginPath();
             ctx.moveTo(xs[0], ys[0]);
-            for (let i = 1; i <= 4; i++) {
+            for (let i = 1; i < 4; i++) {
                 const mx = (xs[i-1] + xs[i]) / 2;
                 ctx.bezierCurveTo(mx, ys[i-1], mx, ys[i], xs[i], ys[i]);
             }
             ctx.stroke();
             ctx.shadowBlur = 0;
 
-            // Stage Nodes & Floating Badges
-            const stageColors = ["#38bdf8", "#0ea5e9", eng === "cpu" ? "#f59e0b" : (eng === "dpu" ? "#f59e0b" : "#a855f7"), "#10b981"];
-            const stageDeltas = [l_ms, pr_ms, inf_ms, po_ms];
-            const stageNames = ["Audio Ingestion", "Mel Preproc", "DS-CNN Core", "Softmax Decode"];
-            const stageHW = [
-                "HOST CPU",
-                (eng === "dpu_hls" || eng === "hls" || eng === "custom_dpu") ? "FPGA HLS" : "HOST CPU",
-                (eng === "custom_dpu") ? "CUSTOM DPU" : (eng === "cpu" ? "HOST CPU" : "FPGA DPU"),
-                "HOST CPU"
-            ];
+            // ── Stage Target Nodes & Floating Non-Cumulative Delay Badges ──
+            for (let i = 0; i < 4; i++) {
+                const cx = xs[i];
+                const cy = ys[i];
+                const color = stageColors[i];
+                const delta = stageDeltas[i];
 
-            for (let i = 1; i <= 4; i++) {
-                const x = xs[i];
-                const y = ys[i];
-                const color = stageColors[i-1];
-                const delta = stageDeltas[i-1];
-                const cumul = times[i];
-
-                // Outer halo
+                // Outer Halo
                 ctx.beginPath();
-                ctx.arc(x, y, 7, 0, Math.PI * 2);
-                ctx.fillStyle = "rgba(255, 255, 255, 0.12)";
+                ctx.arc(cx, cy, 7, 0, Math.PI * 2);
+                ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
                 ctx.fill();
                 ctx.strokeStyle = color;
                 ctx.lineWidth = 1.5;
                 ctx.stroke();
 
-                // Inner core
+                // Inner Core
                 ctx.beginPath();
-                ctx.arc(x, y, 4, 0, Math.PI * 2);
+                ctx.arc(cx, cy, 4, 0, Math.PI * 2);
                 ctx.fillStyle = color;
                 ctx.fill();
 
-                // Floating pill badge
-                const badgeTxt = "+" + delta.toFixed(2) + " ms (Σ " + cumul.toFixed(2) + " ms)";
-                ctx.font = "bold 9.5px JetBrains Mono";
+                // Non-Cumulative Floating Badge Pill (Just the exact stage delay!)
+                const badgeTxt = delta.toFixed(2) + " ms";
+                ctx.font = "bold 10px JetBrains Mono";
                 const txtWidth = ctx.measureText(badgeTxt).width;
-                const bw = txtWidth + 12;
-                const bh = 18;
-                let bx = x - bw / 2;
+                const bw = txtWidth + 14;
+                const bh = 19;
+                let bx = cx - bw / 2;
                 if (bx + bw > W - padR) bx = W - padR - bw;
                 if (bx < padL) bx = padL;
-                const by = Math.max(padT - 22, y - 24);
+                const by = Math.max(padT - 22, cy - 25);
 
                 ctx.fillStyle = "#0f172a";
                 ctx.beginPath();
-                ctx.roundRect ? ctx.roundRect(bx, by, bw, bh, 4) : ctx.rect(bx, by, bw, bh);
+                if (ctx.roundRect) {
+                    ctx.roundRect(bx, by, bw, bh, 4);
+                } else {
+                    ctx.rect(bx, by, bw, bh);
+                }
                 ctx.fill();
                 ctx.strokeStyle = color;
                 ctx.lineWidth = 1;
@@ -4495,29 +4522,28 @@ HTML_PAGE = """<!DOCTYPE html>
 
                 ctx.fillStyle = "#f8fafc";
                 ctx.textAlign = "center";
-                ctx.fillText(badgeTxt, bx + bw / 2, by + 12.5);
+                ctx.fillText(badgeTxt, bx + bw / 2, by + 13);
             }
 
             // X-Axis Stage Titles & Target Device
             for (let i = 0; i < 4; i++) {
-                const midX = (xs[i] + xs[i+1]) / 2;
+                const cx = xs[i];
                 ctx.textAlign = "center";
 
                 ctx.fillStyle = "#e2e8f0";
                 ctx.font = "bold 11px Plus Jakarta Sans";
-                ctx.fillText("STAGE 0" + (i + 1) + ": " + stageNames[i], midX, H - 22);
+                ctx.fillText("STAGE 0" + (i + 1) + ": " + stageNames[i], cx, H - 22);
 
                 ctx.fillStyle = "#94a3b8";
                 ctx.font = "9.5px JetBrains Mono";
-                ctx.fillText(stageHW[i], midX, H - 9);
+                ctx.fillText(stageHW[i], cx, H - 9);
             }
 
-            // Summary Breakdown Cards under Graph
+            // Summary Breakdown Cards under Graph (Non-cumulative stage latencies)
             const summaryRow = document.getElementById("delay-stages-summary-row");
             if (summaryRow) {
                 summaryRow.innerHTML = [0, 1, 2, 3].map(function(i) {
                     const d = stageDeltas[i];
-                    const c = times[i+1];
                     const pct = ((d / total_ms) * 100).toFixed(1);
                     const clr = stageColors[i];
                     return (
@@ -4528,8 +4554,8 @@ HTML_PAGE = """<!DOCTYPE html>
                             '</div>' +
                             '<div class="delay-summary-title">' + stageNames[i] + '</div>' +
                             '<div class="delay-summary-vals">' +
-                                '<span class="delay-summary-delta" style="color:' + clr + ';">+' + d.toFixed(2) + ' ms</span>' +
-                                '<span class="delay-summary-cumul">Cumul: ' + c.toFixed(2) + ' ms</span>' +
+                                '<span class="delay-summary-delta" style="color:' + clr + ';">' + d.toFixed(2) + ' ms</span>' +
+                                '<span class="delay-summary-cumul">Stage Delay</span>' +
                             '</div>' +
                         '</div>'
                     );
@@ -4560,12 +4586,6 @@ HTML_PAGE = """<!DOCTYPE html>
                     else stg = 3;
 
                     const dVal = [lastDelayData.load_ms, lastDelayData.preproc_ms, lastDelayData.infer_ms, lastDelayData.post_ms][stg];
-                    const cVal = [
-                        lastDelayData.load_ms,
-                        lastDelayData.load_ms + lastDelayData.preproc_ms,
-                        lastDelayData.load_ms + lastDelayData.preproc_ms + lastDelayData.infer_ms,
-                        lastDelayData.load_ms + lastDelayData.preproc_ms + lastDelayData.infer_ms + lastDelayData.post_ms
-                    ][stg];
                     const tTot = lastDelayData.load_ms + lastDelayData.preproc_ms + lastDelayData.infer_ms + lastDelayData.post_ms;
                     const pVal = ((dVal / tTot) * 100).toFixed(1);
 
@@ -4574,9 +4594,10 @@ HTML_PAGE = """<!DOCTYPE html>
                         tooltip.style.left = Math.min(cRect.width - 240, Math.max(10, mx + 12)) + "px";
                         tooltip.style.top = Math.min(cRect.height - 75, Math.max(10, my - 50)) + "px";
                         tooltip.innerHTML =
-                            '<div style="font-weight:700; color:#38bdf8; margin-bottom:2px;">STAGE 0' + (stg + 1) + ': ' + stageNames[stg] + ' (' + stageHW[stg] + ')</div>' +
-                            '<div style="display:flex; justify-content:space-between; gap:12px; color:#cbd5e1;"><span>Stage Delta:</span><strong>+' + dVal.toFixed(2) + ' ms (' + pVal + '%)</strong></div>' +
-                            '<div style="display:flex; justify-content:space-between; gap:12px; color:#94a3b8;"><span>Cumulative Delay:</span><strong>' + cVal.toFixed(2) + ' ms</strong></div>';
+                            '<div style="font-weight:700; color:#38bdf8; margin-bottom:3px;">STAGE 0' + (stg + 1) + ': ' + stageNames[stg] + '</div>' +
+                            '<div style="display:flex; justify-content:space-between; gap:12px; color:#cbd5e1;"><span>Hardware Core:</span><strong>' + stageHW[stg] + '</strong></div>' +
+                            '<div style="display:flex; justify-content:space-between; gap:12px; color:#38bdf8;"><span>Stage Latency:</span><strong>' + dVal.toFixed(2) + ' ms</strong></div>' +
+                            '<div style="display:flex; justify-content:space-between; gap:12px; color:#94a3b8;"><span>Pipeline Share:</span><strong>' + pVal + '% of total</strong></div>';
                     }
                 });
 
