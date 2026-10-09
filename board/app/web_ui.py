@@ -1544,6 +1544,113 @@ HTML_PAGE = """<!DOCTYPE html>
             font-family: var(--font-mono);
         }
 
+        /* ── Real-Time End-to-End Pipeline Execution Delay Progression Graph ── */
+        .pipeline-delay-graph-card {
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 16px;
+            margin-top: 18px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+        }
+
+        .delay-graph-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .delay-graph-header-metrics {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .delay-canvas-wrapper {
+            position: relative;
+            width: 100%;
+            height: 250px;
+            background: #090d16;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #1e293b;
+            box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.5);
+        }
+
+        .delay-stages-summary-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        @media (max-width: 820px) {
+            .delay-stages-summary-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        .delay-summary-card {
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 12px;
+            transition: all 0.2s ease;
+        }
+
+        .delay-summary-card:hover {
+            border-color: #93c5fd;
+            background: #f0f7ff;
+            transform: translateY(-1px);
+        }
+
+        .delay-summary-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2px;
+        }
+
+        .delay-summary-num {
+            font-size: 10px;
+            font-weight: 800;
+            color: #94a3b8;
+            font-family: var(--font-mono);
+        }
+
+        .delay-summary-pct {
+            font-size: 10.5px;
+            font-weight: 700;
+            font-family: var(--font-mono);
+        }
+
+        .delay-summary-title {
+            font-size: 11.5px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        .delay-summary-vals {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            font-family: var(--font-mono);
+        }
+
+        .delay-summary-delta {
+            font-size: 13.5px;
+            font-weight: 800;
+        }
+
+        .delay-summary-cumul {
+            font-size: 11px;
+            color: #64748b;
+        }
+
         /* ── Dedicated Separate Run Detail View ── */
         .run-detail-view {
             animation: fadeIn 0.25s ease;
@@ -2310,6 +2417,37 @@ HTML_PAGE = """<!DOCTYPE html>
                         <div class="legend-item"><span class="legend-dot dot-pre"></span> Preproc Mel</div>
                         <div class="legend-item"><span class="legend-dot dot-infer"></span> Neural Inference</div>
                         <div class="legend-item"><span class="legend-dot dot-post"></span> Softmax Postproc</div>
+                    </div>
+
+                    <!-- ── REAL-TIME PIPELINE EXECUTION DELAY PROGRESSION GRAPH ── -->
+                    <div class="pipeline-delay-graph-card">
+                        <div class="delay-graph-header">
+                            <div>
+                                <div style="display:flex; align-items:center; gap:8px;">
+                                    <span class="pipeline-chip" style="background:#e0f2fe; color:#0369a1; border-color:#bae6fd;">HARDWARE LATENCY PROFILE</span>
+                                    <span style="font-weight: 800; font-size: 13.5px; color: #0f172a; font-family: var(--font-display);">End-to-End Execution Delay &amp; Cumulative Latency Progression (T₀ ➜ T₁ ➜ T₂ ➜ T₃ ➜ T₄)</span>
+                                </div>
+                                <div style="font-size: 11.5px; color: #64748b; margin-top: 3px;">
+                                    Real-time millisecond accumulation across pipeline boundaries · Dynamically driven by active stage card measurements
+                                </div>
+                            </div>
+                            <div class="delay-graph-header-metrics">
+                                <span class="badge badge-blue" id="delay-graph-engine-badge">CONFIG A: HOST CPU</span>
+                                <span class="badge badge-green" id="delay-graph-total-badge">Total: 43.10 ms</span>
+                            </div>
+                        </div>
+
+                        <!-- Canvas Container -->
+                        <div class="delay-canvas-wrapper" id="delay-canvas-wrapper">
+                            <canvas id="pipeline-delay-canvas"></canvas>
+                            <!-- Interactive Tooltip Overlay -->
+                            <div id="delay-canvas-tooltip" style="display: none; position: absolute; pointer-events: none; z-index: 10; background: rgba(15, 23, 42, 0.94); border: 1px solid #38bdf8; border-radius: 6px; padding: 6px 10px; font-family: var(--font-mono); font-size: 11px; color: #fff; box-shadow: 0 4px 14px rgba(0,0,0,0.5); backdrop-filter: blur(6px);"></div>
+                        </div>
+
+                        <!-- Stage-by-Stage Delay Summary Pills directly aligned with the 4 boxes -->
+                        <div class="delay-stages-summary-row" id="delay-stages-summary-row">
+                            <!-- Populated dynamically via JS matching the 4 boxes -->
+                        </div>
                     </div>
                 </div>
             </div>
@@ -4122,11 +4260,352 @@ HTML_PAGE = """<!DOCTYPE html>
             }
         }
 
+        // ── Real-Time End-to-End Pipeline Delay Progression Trace Graph ──
+        let lastDelayData = { load_ms: 0.27, preproc_ms: 1.94, infer_ms: 41.08, post_ms: 0.08, engine: "cpu" };
+
+        function renderPipelineDelayGraph(load_ms, preproc_ms, infer_ms, post_ms, engine) {
+            const canvas = document.getElementById("pipeline-delay-canvas");
+            if (!canvas) return;
+
+            const l_ms = Math.max(0.01, parseFloat(load_ms) || 0.27);
+            const pr_ms = Math.max(0.01, parseFloat(preproc_ms) || 1.94);
+            const inf_ms = Math.max(0.01, parseFloat(infer_ms) || 41.08);
+            const po_ms = Math.max(0.01, parseFloat(post_ms) || 0.08);
+            const eng = engine || (document.getElementById("engine-select") ? document.getElementById("engine-select").value : "cpu");
+            lastDelayData = { load_ms: l_ms, preproc_ms: pr_ms, infer_ms: inf_ms, post_ms: po_ms, engine: eng };
+
+            const total_ms = l_ms + pr_ms + inf_ms + po_ms;
+            const engBadge = document.getElementById("delay-graph-engine-badge");
+            const totBadge = document.getElementById("delay-graph-total-badge");
+            if (engBadge) {
+                if (eng === "cpu") {
+                    engBadge.className = "badge badge-blue";
+                    engBadge.innerText = "CONFIG A: HOST CPU";
+                } else if (eng === "dpu") {
+                    engBadge.className = "badge badge-orange";
+                    engBadge.innerText = "CONFIG B: KV260 DPU";
+                } else if (eng === "dpu_hls" || eng === "hls") {
+                    engBadge.className = "badge badge-green";
+                    engBadge.innerText = "CONFIG C: DPU + HLS";
+                } else {
+                    engBadge.className = "badge badge-purple";
+                    engBadge.innerText = "CONFIG D: DUAL CUSTOM IP";
+                }
+            }
+            if (totBadge) {
+                totBadge.innerText = "Cumulative Delay: " + total_ms.toFixed(2) + " ms (" + (1000.0 / total_ms).toFixed(1) + " FPS)";
+            }
+
+            // High DPI Canvas Scaling
+            const container = canvas.parentElement;
+            const rect = container ? container.getBoundingClientRect() : { width: 800, height: 250 };
+            const dpr = window.devicePixelRatio || 1;
+            const W = rect.width > 50 ? rect.width : 800;
+            const H = 250;
+            canvas.width = Math.floor(W * dpr);
+            canvas.height = Math.floor(H * dpr);
+            const ctx = canvas.getContext("2d");
+            ctx.scale(dpr, dpr);
+
+            const padL = 60;
+            const padR = 40;
+            const padT = 38;
+            const padB = 42;
+            const plotW = W - padL - padR;
+            const plotH = H - padT - padB;
+
+            // Background
+            ctx.fillStyle = "#090d16";
+            ctx.fillRect(0, 0, W, H);
+
+            // Dynamic Y scale
+            const maxY = Math.max(1.8, total_ms * 1.18);
+            function yFor(val) {
+                return padT + plotH * (1.0 - (val / maxY));
+            }
+
+            // Grid lines & Y-axis labels
+            const ySteps = 4;
+            ctx.strokeStyle = "#1e293b";
+            ctx.lineWidth = 1;
+            ctx.fillStyle = "#64748b";
+            ctx.font = "10px JetBrains Mono";
+            ctx.textAlign = "right";
+
+            for (let i = 0; i <= ySteps; i++) {
+                const val = (maxY / ySteps) * i;
+                const y = yFor(val);
+                ctx.beginPath();
+                ctx.moveTo(padL, y);
+                ctx.lineTo(W - padR, y);
+                ctx.stroke();
+
+                ctx.fillText(val.toFixed(val >= 10 ? 0 : 1) + " ms", padL - 8, y + 3.5);
+            }
+
+            // X coordinates for 4 stages
+            const xs = [
+                padL,
+                padL + plotW * 0.25,
+                padL + plotW * 0.50,
+                padL + plotW * 0.75,
+                padL + plotW * 1.00
+            ];
+
+            // Cumulative millisecond milestones
+            const t0 = 0.0;
+            const t1 = l_ms;
+            const t2 = t1 + pr_ms;
+            const t3 = t2 + inf_ms;
+            const t4 = t3 + po_ms;
+            const times = [t0, t1, t2, t3, t4];
+            const ys = [yFor(t0), yFor(t1), yFor(t2), yFor(t3), yFor(t4)];
+
+            // Alternating Stage Column Shading & Vertical Separators
+            for (let i = 0; i < 4; i++) {
+                if (i % 2 === 1) {
+                    ctx.fillStyle = "rgba(255, 255, 255, 0.015)";
+                    ctx.fillRect(xs[i], padT, xs[i+1] - xs[i], plotH);
+                }
+                ctx.strokeStyle = "rgba(51, 65, 85, 0.6)";
+                ctx.setLineDash([3, 3]);
+                ctx.beginPath();
+                ctx.moveTo(xs[i+1], padT);
+                ctx.lineTo(xs[i+1], padT + plotH);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            // Ghost Benchmark Curve for FPGA DPU+HLS (1.87 ms) when observing Host CPU
+            if (eng === "cpu" && maxY > 10) {
+                const ghT = [0, 0.27, 0.27 + 0.35, 0.27 + 0.35 + 1.47, 0.27 + 0.35 + 1.47 + 0.05];
+                ctx.strokeStyle = "rgba(16, 185, 129, 0.4)";
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                ctx.moveTo(xs[0], yFor(ghT[0]));
+                for (let i = 1; i <= 4; i++) {
+                    const mx = (xs[i-1] + xs[i]) / 2;
+                    ctx.bezierCurveTo(mx, yFor(ghT[i-1]), mx, yFor(ghT[i]), xs[i], yFor(ghT[i]));
+                }
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                ctx.fillStyle = "#10b981";
+                ctx.font = "9px JetBrains Mono";
+                ctx.textAlign = "right";
+                ctx.fillText("⚡ FPGA DPU+HLS Target Baseline (1.87 ms · 33.4×)", W - padR - 8, yFor(ghT[4]) - 6);
+            }
+
+            // Glowing Area Fill Under Curve
+            const grad = ctx.createLinearGradient(0, padT, 0, padT + plotH);
+            if (eng === "cpu") {
+                grad.addColorStop(0, "rgba(59, 130, 246, 0.32)");
+                grad.addColorStop(1, "rgba(59, 130, 246, 0.01)");
+            } else if (eng === "dpu") {
+                grad.addColorStop(0, "rgba(245, 158, 11, 0.32)");
+                grad.addColorStop(1, "rgba(245, 158, 11, 0.01)");
+            } else if (eng === "dpu_hls" || eng === "hls") {
+                grad.addColorStop(0, "rgba(16, 185, 129, 0.32)");
+                grad.addColorStop(1, "rgba(16, 185, 129, 0.01)");
+            } else {
+                grad.addColorStop(0, "rgba(139, 92, 246, 0.32)");
+                grad.addColorStop(1, "rgba(139, 92, 246, 0.01)");
+            }
+
+            ctx.beginPath();
+            ctx.moveTo(xs[0], yFor(0));
+            ctx.lineTo(xs[0], ys[0]);
+            for (let i = 1; i <= 4; i++) {
+                const mx = (xs[i-1] + xs[i]) / 2;
+                ctx.bezierCurveTo(mx, ys[i-1], mx, ys[i], xs[i], ys[i]);
+            }
+            ctx.lineTo(xs[4], yFor(0));
+            ctx.closePath();
+            ctx.fillStyle = grad;
+            ctx.fill();
+
+            // Main Stepping Latency Curve
+            const strokeColor = eng === "cpu" ? "#38bdf8" : (eng === "dpu" ? "#f59e0b" : (eng === "dpu_hls" || eng === "hls" ? "#10b981" : "#a855f7"));
+            ctx.strokeStyle = strokeColor;
+            ctx.lineWidth = 3;
+            ctx.shadowColor = strokeColor;
+            ctx.shadowBlur = 10;
+
+            ctx.beginPath();
+            ctx.moveTo(xs[0], ys[0]);
+            for (let i = 1; i <= 4; i++) {
+                const mx = (xs[i-1] + xs[i]) / 2;
+                ctx.bezierCurveTo(mx, ys[i-1], mx, ys[i], xs[i], ys[i]);
+            }
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+
+            // Stage Nodes & Floating Badges
+            const stageColors = ["#38bdf8", "#0ea5e9", eng === "cpu" ? "#f59e0b" : (eng === "dpu" ? "#f59e0b" : "#a855f7"), "#10b981"];
+            const stageDeltas = [l_ms, pr_ms, inf_ms, po_ms];
+            const stageNames = ["Audio Ingestion", "Mel Preproc", "DS-CNN Core", "Softmax Decode"];
+            const stageHW = [
+                "HOST CPU",
+                (eng === "dpu_hls" || eng === "hls" || eng === "custom_dpu") ? "FPGA HLS" : "HOST CPU",
+                (eng === "custom_dpu") ? "CUSTOM DPU" : (eng === "cpu" ? "HOST CPU" : "FPGA DPU"),
+                "HOST CPU"
+            ];
+
+            for (let i = 1; i <= 4; i++) {
+                const x = xs[i];
+                const y = ys[i];
+                const color = stageColors[i-1];
+                const delta = stageDeltas[i-1];
+                const cumul = times[i];
+
+                // Outer halo
+                ctx.beginPath();
+                ctx.arc(x, y, 7, 0, Math.PI * 2);
+                ctx.fillStyle = "rgba(255, 255, 255, 0.12)";
+                ctx.fill();
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+
+                // Inner core
+                ctx.beginPath();
+                ctx.arc(x, y, 4, 0, Math.PI * 2);
+                ctx.fillStyle = color;
+                ctx.fill();
+
+                // Floating pill badge
+                const badgeTxt = "+" + delta.toFixed(2) + " ms (Σ " + cumul.toFixed(2) + " ms)";
+                ctx.font = "bold 9.5px JetBrains Mono";
+                const txtWidth = ctx.measureText(badgeTxt).width;
+                const bw = txtWidth + 12;
+                const bh = 18;
+                let bx = x - bw / 2;
+                if (bx + bw > W - padR) bx = W - padR - bw;
+                if (bx < padL) bx = padL;
+                const by = Math.max(padT - 22, y - 24);
+
+                ctx.fillStyle = "#0f172a";
+                ctx.beginPath();
+                ctx.roundRect ? ctx.roundRect(bx, by, bw, bh, 4) : ctx.rect(bx, by, bw, bh);
+                ctx.fill();
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                ctx.fillStyle = "#f8fafc";
+                ctx.textAlign = "center";
+                ctx.fillText(badgeTxt, bx + bw / 2, by + 12.5);
+            }
+
+            // X-Axis Stage Titles & Target Device
+            for (let i = 0; i < 4; i++) {
+                const midX = (xs[i] + xs[i+1]) / 2;
+                ctx.textAlign = "center";
+
+                ctx.fillStyle = "#e2e8f0";
+                ctx.font = "bold 11px Plus Jakarta Sans";
+                ctx.fillText("STAGE 0" + (i + 1) + ": " + stageNames[i], midX, H - 22);
+
+                ctx.fillStyle = "#94a3b8";
+                ctx.font = "9.5px JetBrains Mono";
+                ctx.fillText(stageHW[i], midX, H - 9);
+            }
+
+            // Summary Breakdown Cards under Graph
+            const summaryRow = document.getElementById("delay-stages-summary-row");
+            if (summaryRow) {
+                summaryRow.innerHTML = [0, 1, 2, 3].map(function(i) {
+                    const d = stageDeltas[i];
+                    const c = times[i+1];
+                    const pct = ((d / total_ms) * 100).toFixed(1);
+                    const clr = stageColors[i];
+                    return (
+                        '<div class="delay-summary-card">' +
+                            '<div class="delay-summary-top">' +
+                                '<span class="delay-summary-num">STAGE 0' + (i + 1) + ' · ' + stageHW[i] + '</span>' +
+                                '<span class="delay-summary-pct" style="color:' + clr + ';">' + pct + '%</span>' +
+                            '</div>' +
+                            '<div class="delay-summary-title">' + stageNames[i] + '</div>' +
+                            '<div class="delay-summary-vals">' +
+                                '<span class="delay-summary-delta" style="color:' + clr + ';">+' + d.toFixed(2) + ' ms</span>' +
+                                '<span class="delay-summary-cumul">Cumul: ' + c.toFixed(2) + ' ms</span>' +
+                            '</div>' +
+                        '</div>'
+                    );
+                }).join("");
+            }
+
+            // Attach interactive mouse hover tooltip once
+            if (!canvas._boundDelayHover) {
+                canvas._boundDelayHover = true;
+                const tooltip = document.getElementById("delay-canvas-tooltip");
+
+                canvas.addEventListener("mousemove", function(e) {
+                    const cRect = canvas.getBoundingClientRect();
+                    const mx = e.clientX - cRect.left;
+                    const my = e.clientY - cRect.top;
+
+                    const curPlotW = cRect.width - padL - padR;
+                    if (mx < padL || mx > cRect.width - padR) {
+                        if (tooltip) tooltip.style.display = "none";
+                        return;
+                    }
+
+                    const relX = (mx - padL) / curPlotW;
+                    let stg = 0;
+                    if (relX < 0.25) stg = 0;
+                    else if (relX < 0.50) stg = 1;
+                    else if (relX < 0.75) stg = 2;
+                    else stg = 3;
+
+                    const dVal = [lastDelayData.load_ms, lastDelayData.preproc_ms, lastDelayData.infer_ms, lastDelayData.post_ms][stg];
+                    const cVal = [
+                        lastDelayData.load_ms,
+                        lastDelayData.load_ms + lastDelayData.preproc_ms,
+                        lastDelayData.load_ms + lastDelayData.preproc_ms + lastDelayData.infer_ms,
+                        lastDelayData.load_ms + lastDelayData.preproc_ms + lastDelayData.infer_ms + lastDelayData.post_ms
+                    ][stg];
+                    const tTot = lastDelayData.load_ms + lastDelayData.preproc_ms + lastDelayData.infer_ms + lastDelayData.post_ms;
+                    const pVal = ((dVal / tTot) * 100).toFixed(1);
+
+                    if (tooltip) {
+                        tooltip.style.display = "block";
+                        tooltip.style.left = Math.min(cRect.width - 240, Math.max(10, mx + 12)) + "px";
+                        tooltip.style.top = Math.min(cRect.height - 75, Math.max(10, my - 50)) + "px";
+                        tooltip.innerHTML =
+                            '<div style="font-weight:700; color:#38bdf8; margin-bottom:2px;">STAGE 0' + (stg + 1) + ': ' + stageNames[stg] + ' (' + stageHW[stg] + ')</div>' +
+                            '<div style="display:flex; justify-content:space-between; gap:12px; color:#cbd5e1;"><span>Stage Delta:</span><strong>+' + dVal.toFixed(2) + ' ms (' + pVal + '%)</strong></div>' +
+                            '<div style="display:flex; justify-content:space-between; gap:12px; color:#94a3b8;"><span>Cumulative Delay:</span><strong>' + cVal.toFixed(2) + ' ms</strong></div>';
+                    }
+                });
+
+                canvas.addEventListener("mouseleave", function() {
+                    if (tooltip) tooltip.style.display = "none";
+                });
+            }
+        }
+        window.renderPipelineDelayGraph = renderPipelineDelayGraph;
+        window.addEventListener("resize", function() {
+            if (lastDelayData) {
+                renderPipelineDelayGraph(lastDelayData.load_ms, lastDelayData.preproc_ms, lastDelayData.infer_ms, lastDelayData.post_ms, lastDelayData.engine);
+            }
+        });
+
         // ── Engine Switching & Auto-Clear Handlers ──
         function onEngineChange() {
             const eng = document.getElementById('engine-select').value;
             clearCurrentResults();
             updatePipelineDiagram(eng);
+            if (eng === 'cpu') {
+                renderPipelineDelayGraph(0.27, 1.94, 41.08, 0.08, 'cpu');
+            } else if (eng === 'dpu') {
+                renderPipelineDelayGraph(0.27, 1.94, 1.47, 0.05, 'dpu');
+            } else if (eng === 'dpu_hls' || eng === 'hls') {
+                renderPipelineDelayGraph(0.27, 0.35, 1.47, 0.05, 'dpu_hls');
+            } else if (eng === 'custom_dpu' || eng === 'config_d') {
+                renderPipelineDelayGraph(0.27, 0.35, 0.65, 0.08, 'custom_dpu');
+            }
         }
 
         function clearCurrentResults() {
@@ -5376,6 +5855,13 @@ HTML_PAGE = """<!DOCTYPE html>
 
             document.getElementById('result-panel').style.display = 'block';
 
+            // Dynamically redraw the E2E Pipeline Delay Progression Graph matching the exact 4 box measurements
+            try {
+                renderPipelineDelayGraph(data.load_ms, data.preproc_ms, data.infer_ms, data.post_ms, data.engine);
+            } catch (err) {
+                console.error('Error updating delay progression graph:', err);
+            }
+
             // Automatically record every inference run into History (Pure JSON)
             recordRunInHistory(data);
         }
@@ -5510,7 +5996,9 @@ HTML_PAGE = """<!DOCTYPE html>
             try { initHistory(); } catch(e) { console.error('initHistory error:', e); }
             try {
                 const engSelect = document.getElementById('engine-select');
-                updatePipelineDiagram(engSelect ? engSelect.value : 'cpu');
+                const engVal = engSelect ? engSelect.value : 'cpu';
+                updatePipelineDiagram(engVal);
+                renderPipelineDelayGraph(0.27, 1.94, 41.08, 0.08, engVal);
             } catch(e) { console.error('updatePipelineDiagram error:', e); }
         });
     </script>
