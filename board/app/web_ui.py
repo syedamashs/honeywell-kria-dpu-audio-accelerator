@@ -52,34 +52,8 @@ from pipeline.utils import KEYWORDS, LABEL2IDX, SAMPLE_RATE, pad_or_trim
 PORT = int(os.environ.get("PORT", 8080))
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 MAX_REQUEST_BYTES = 15 * 1024 * 1024
-WHISPER_MODEL_SIZE = "tiny"
-_whisper_model = None
-
-
 def transcribe_audio(audio: np.ndarray) -> str:
-    global _whisper_model
-
-    # 1. Primary Engine: OpenAI Whisper (High-accuracy local/server model)
-    try:
-        import whisper
-        if _whisper_model is None:
-            _whisper_model = whisper.load_model(WHISPER_MODEL_SIZE)
-        audio_f32 = np.ascontiguousarray(audio, dtype=np.float32)
-        result = _whisper_model.transcribe(
-            audio_f32,
-            language="en",
-            task="transcribe",
-            fp16=False,
-            verbose=False,
-        )
-        txt = result.get("text", "").strip()
-        if txt:
-            print(f"[WHISPER TRANSCRIPT] {repr(txt)}", flush=True)
-            return txt
-    except Exception as exc:
-        print(f"[WHISPER NOTICE] {exc}", flush=True)
-
-    # 2. Secondary Engine: Google Speech API (Fast cloud fallback, zero extra RAM)
+    """Optional speech-to-text fallback using lightweight speech_recognition if installed."""
     try:
         import speech_recognition as sr
         from io import BytesIO
@@ -95,10 +69,9 @@ def transcribe_audio(audio: np.ndarray) -> str:
             data = r.record(source)
             google_txt = r.recognize_google(data)
             if google_txt:
-                print(f"[GOOGLE STT TRANSCRIPT] {repr(google_txt)}", flush=True)
                 return google_txt.strip()
-    except Exception as exc:
-        print(f"[STT FALLBACK NOTICE] {exc}", flush=True)
+    except Exception:
+        pass
 
     return ""
 
