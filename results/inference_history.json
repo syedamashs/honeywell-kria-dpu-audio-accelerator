@@ -1,5 +1,131 @@
 [
   {
+    "id": "RUN-1791585663066",
+    "timestamp": "2026-10-10 04:11:03",
+    "timestamp_ms": 1791585663066,
+    "mode": "passive",
+    "engine": "cpu",
+    "runner_label": "CPU Baseline (ARM Cortex-A53 @ 1.2GHz)",
+    "filename": "test_04_stop_837a0f64_nohash_4.wav",
+    "keyword": "STOP",
+    "detected_keywords": [
+      "STOP"
+    ],
+    "confidence": 0.9813,
+    "class_idx": 8,
+    "load_ms": 0.5761,
+    "preproc_ms": 2.6179,
+    "infer_ms": 23.7329,
+    "post_ms": 0.1913,
+    "total_ms": 26.542099999999998,
+    "is_board_dpu": false,
+    "dpu_irq": null,
+    "transcript": "STOP",
+    "raw_data": {
+      "keyword": "STOP",
+      "detected_keywords": [
+        "STOP"
+      ],
+      "detected_count": 1,
+      "keywords_matrix": [
+        {
+          "keyword": "yes",
+          "status": "NO",
+          "present": false,
+          "confidence": 0.0004,
+          "class_idx": 0
+        },
+        {
+          "keyword": "no",
+          "status": "NO",
+          "present": false,
+          "confidence": 0.0004,
+          "class_idx": 1
+        },
+        {
+          "keyword": "up",
+          "status": "NO",
+          "present": false,
+          "confidence": 0.0061,
+          "class_idx": 2
+        },
+        {
+          "keyword": "down",
+          "status": "NO",
+          "present": false,
+          "confidence": 0.0031,
+          "class_idx": 3
+        },
+        {
+          "keyword": "left",
+          "status": "NO",
+          "present": false,
+          "confidence": 0.0021,
+          "class_idx": 4
+        },
+        {
+          "keyword": "right",
+          "status": "NO",
+          "present": false,
+          "confidence": 0.0013,
+          "class_idx": 5
+        },
+        {
+          "keyword": "on",
+          "status": "NO",
+          "present": false,
+          "confidence": 0.0001,
+          "class_idx": 6
+        },
+        {
+          "keyword": "off",
+          "status": "NO",
+          "present": false,
+          "confidence": 0.0011,
+          "class_idx": 7
+        },
+        {
+          "keyword": "stop",
+          "status": "YES",
+          "present": true,
+          "confidence": 0.9813,
+          "class_idx": 8
+        },
+        {
+          "keyword": "go",
+          "status": "NO",
+          "present": false,
+          "confidence": 0.0019,
+          "class_idx": 9
+        }
+      ],
+      "confidence": 0.9813,
+      "class_idx": 8,
+      "mode": "passive",
+      "engine": "cpu",
+      "runner_label": "CPU Baseline (ARM Cortex-A53 @ 1.2GHz)",
+      "is_staged": false,
+      "is_board_dpu": false,
+      "dpu_irq": null,
+      "measured_infer_ms": 23.7329,
+      "filename": "test_04_stop_837a0f64_nohash_4.wav",
+      "transcript": "STOP",
+      "duration_ms": 1000.0,
+      "segment_predictions": [
+        {
+          "start_s": 0.0,
+          "keyword": "stop",
+          "confidence": 0.9812843203544617,
+          "class_idx": 8
+        }
+      ],
+      "load_ms": 0.5761,
+      "preproc_ms": 2.6179,
+      "infer_ms": 23.7329,
+      "post_ms": 0.1913
+    }
+  },
+  {
     "id": "RUN-1791583703769",
     "timestamp": "2026-10-10 03:38:23",
     "timestamp_ms": 1791583703769,

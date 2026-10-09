@@ -63,6 +63,7 @@ __pycache__/
 dist/
 build/
 *.tar.gz
+!deploy_kria_kv260.tar.gz
 *.tar
 *.zip
 .eggs/
