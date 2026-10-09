@@ -33,7 +33,7 @@ INCLUDED_ITEMS = [
     "data/test_inputs",
     "models/onnx",
     "models/compiled",
-    "scripts/run_on_board.sh",
+    "scripts",
     "requirements.txt",
     "README.md",
     "hls/custom_dpu",

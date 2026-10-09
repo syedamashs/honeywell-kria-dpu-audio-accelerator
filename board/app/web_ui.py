@@ -89,6 +89,28 @@ HTML_PAGE = """<!DOCTYPE html>
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        window.addEventListener('error', function(e) {
+            console.error('[CLIENT RUNTIME ERROR]', e.message, e.filename, e.lineno);
+            try {
+                fetch('/api/client_error', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({type: 'error', msg: e.message, file: e.filename, line: e.lineno, col: e.colno})
+                });
+            } catch(_) {}
+        });
+        window.addEventListener('unhandledrejection', function(e) {
+            console.error('[UNHANDLED PROMISE REJECTION]', e.reason);
+            try {
+                fetch('/api/client_error', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({type: 'rejection', reason: String(e.reason)})
+                });
+            } catch(_) {}
+        });
+    </script>
     <style>
         :root {
             --bg: #f8fafc;
@@ -1640,6 +1662,266 @@ HTML_PAGE = """<!DOCTYPE html>
             .run-detail-kpi-grid { grid-template-columns: 1fr 1fr; }
             .run-chart-grid { grid-template-columns: 1fr; }
         }
+
+        /* ── Pipeline Simulation Styles ── */
+        .sim-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            width: 100%;
+        }
+        .sim-toolbar {
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        }
+        .sim-btn-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .sim-btn {
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text);
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .sim-btn:hover:not(:disabled) {
+            background: var(--surface-elevated);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        .sim-btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+        .sim-btn-primary {
+            background: var(--accent);
+            color: #ffffff;
+            border-color: var(--accent);
+        }
+        .sim-btn-primary:hover:not(:disabled) {
+            background: var(--accent-hover);
+            color: #ffffff;
+        }
+        .sim-btn-success {
+            background: #059669;
+            color: #ffffff;
+            border-color: #059669;
+        }
+        .sim-btn-success:hover:not(:disabled) {
+            background: #047857;
+            color: #ffffff;
+        }
+        .sim-stepper-bar {
+            display: flex;
+            gap: 6px;
+            background: #f1f5f9;
+            padding: 8px;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .sim-step-pill {
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: 6px 14px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            cursor: pointer;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+        .sim-step-pill:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+        .sim-step-pill.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #ffffff;
+            font-weight: 700;
+            box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+        }
+        .sim-step-pill.completed {
+            background: #ecfdf5;
+            border-color: #a7f3d0;
+            color: #059669;
+        }
+        .sim-stage-card {
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .sim-stage-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 16px;
+        }
+        .sim-stage-badge {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            font-weight: 800;
+            padding: 4px 10px;
+            border-radius: 999px;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+        .sim-canvas-box {
+            background: #0f172a;
+            border-radius: var(--radius-md);
+            padding: 16px;
+            position: relative;
+            min-height: 240px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            border: 1px solid #1e293b;
+        }
+        .sim-canvas {
+            width: 100%;
+            height: 220px;
+            display: block;
+        }
+        .sim-format-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 16px;
+        }
+        .sim-format-card {
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .sim-format-title {
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: #64748b;
+            font-family: var(--font-mono);
+        }
+        .sim-format-val {
+            font-size: 13.5px;
+            font-weight: 700;
+            color: #0f172a;
+            font-family: var(--font-mono);
+        }
+        .sim-format-sub {
+            font-size: 12px;
+            color: #475569;
+            line-height: 1.5;
+        }
+        .sim-config-branch-list {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        .sim-config-branch-card {
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 18px 20px;
+            transition: all 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .sim-config-branch-card:hover {
+            border-color: #93c5fd;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.06);
+        }
+        .sim-config-branch-card.active {
+            border-color: var(--accent);
+            background: #f8fbff;
+            box-shadow: 0 0 0 2px var(--accent);
+        }
+        .sim-branch-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .sim-substep-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 6px;
+        }
+        .sim-substep-chip {
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-size: 11.5px;
+            font-family: var(--font-mono);
+            color: #334155;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .sim-substep-chip.highlight {
+            background: #eff6ff;
+            border-color: #93c5fd;
+            color: #1d4ed8;
+            font-weight: 700;
+        }
+        .sim-bit-box {
+            display: flex;
+            gap: 4px;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            flex-wrap: wrap;
+        }
+        .sim-bit-cell {
+            padding: 4px 7px;
+            border-radius: 4px;
+            background: #1e293b;
+            color: #38bdf8;
+            font-weight: 700;
+        }
+        @media (max-width: 768px) {
+            .sim-format-grid { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
@@ -1660,6 +1942,9 @@ HTML_PAGE = """<!DOCTYPE html>
             <nav class="portfolio-nav-tabs" role="tablist">
                 <button class="nav-tab-btn active" id="tab-btn-demo" onclick="switchTab('demo')">
                     <span>🚀 Live Accelerator</span>
+                </button>
+                <button class="nav-tab-btn" id="tab-btn-simulation" onclick="switchTab('simulation')">
+                    <span>🔬 Pipeline Simulation</span>
                 </button>
                 <button class="nav-tab-btn" id="tab-btn-history" onclick="switchTab('history')">
                     <span>📜 History &amp; Runs</span>
@@ -2803,25 +3088,1037 @@ HTML_PAGE = """<!DOCTYPE html>
             </div>
         </section>
 
+
+        <!-- ══════════════════════════════════════════════════════════════════
+             TAB 2: DEEP PIPELINE SIMULATION (STEP-BY-STEP HARDWARE & SIGNAL)
+             ══════════════════════════════════════════════════════════════════ -->
+        <section id="sec-simulation" class="tab-section">
+            <div class="section-header">
+                <span class="section-tag">Interactive End-to-End Hardware Simulation</span>
+                <h2 class="section-title">Deep Audio KWS Pipeline Simulator</h2>
+                <p class="section-subtitle">
+                    Step-by-step interactive simulation demonstrating every mathematical transformation, signal conversion, bit-level hardware format, and the 4 execution engine pipelines.
+                </p>
+            </div>
+
+            <div class="sim-container">
+                <!-- Top Simulation Toolbar & Audio Sample Selector -->
+                <div class="sim-toolbar">
+                    <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                        <span style="font-size:12.5px; font-weight:700; color:var(--text); font-family:var(--font-mono);">
+                            🎵 SAMPLE AUDIO:
+                        </span>
+                        <select id="sim-audio-select" onchange="simChangeAudioSample(this.value)" style="padding:6px 12px; border-radius:6px; border:1px solid var(--border); font-family:var(--font-mono); font-size:12.5px; background:#fff; font-weight:600;">
+                            <option value="yes">"YES" (Speech Command — 16kHz PCM)</option>
+                            <option value="stop">"STOP" (Speech Command — 16kHz PCM)</option>
+                            <option value="go">"GO" (Speech Command — 16kHz PCM)</option>
+                            <option value="marvin">"MARVIN" (Acoustic Keyword — 16kHz PCM)</option>
+                            <option value="digit_3">"THREE" (Numeric Class — 16kHz PCM)</option>
+                        </select>
+                        <button class="sim-btn" onclick="simPlayAudioSynth()" id="sim-play-synth-btn" title="Synthesize and play audio waveform in browser">
+                            <span>🔊 Listen to Audio</span>
+                        </button>
+                    </div>
+
+                    <div class="sim-btn-group">
+                        <button class="sim-btn" onclick="simPrevStep()" id="sim-prev-btn" disabled>
+                            <span>◀ Previous</span>
+                        </button>
+                        <span id="sim-step-indicator-text" style="font-family:var(--font-mono); font-size:12px; font-weight:800; color:var(--accent); background:#eff6ff; padding:6px 14px; border-radius:999px; border:1px solid #bfdbfe;">
+                            STAGE 1 OF 9
+                        </span>
+                        <button class="sim-btn sim-btn-primary" onclick="simNextStep()" id="sim-next-btn">
+                            <span>Next Stage ▶</span>
+                        </button>
+                        <button class="sim-btn sim-btn-success" onclick="simToggleAutoPlay()" id="sim-autoplay-btn">
+                            <span>▶ Auto-Play Simulation</span>
+                        </button>
+                        <button class="sim-btn" onclick="simGoStep(0)" title="Reset back to Stage 1">
+                            <span>↺ Reset</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 9-Step Interactive Stepper Bar -->
+                <div class="sim-stepper-bar" role="tablist">
+                    <button class="sim-step-pill active" id="sim-pill-0" onclick="simGoStep(0)">1. 🎵 Raw Audio</button>
+                    <button class="sim-step-pill" id="sim-pill-1" onclick="simGoStep(1)">2. ✂ Framing &amp; Windowing</button>
+                    <button class="sim-step-pill" id="sim-pill-2" onclick="simGoStep(2)">3. ⚡ Pre-Emphasis Filter</button>
+                    <button class="sim-step-pill" id="sim-pill-3" onclick="simGoStep(3)">4. 📊 FFT Power Spectrum</button>
+                    <button class="sim-step-pill" id="sim-pill-4" onclick="simGoStep(4)">5. 📐 Mel Filterbank &amp; GEMM</button>
+                    <button class="sim-step-pill" id="sim-pill-5" onclick="simGoStep(5)">6. 🌌 Log-Mel Spectrogram</button>
+                    <button class="sim-step-pill" id="sim-pill-6" onclick="simGoStep(6)">7. 🔲 INT8 Quantization</button>
+                    <button class="sim-step-pill" id="sim-pill-7" onclick="simGoStep(7)">8. 🚀 4-Config Compute Engines</button>
+                    <button class="sim-step-pill" id="sim-pill-8" onclick="simGoStep(8)">9. 🎯 Softmax &amp; Detection</button>
+                </div>
+
+                <!-- Dynamic Active Stage Viewport Card -->
+                <div class="sim-stage-card">
+                    <!-- Stage Header -->
+                    <div class="sim-stage-header">
+                        <div>
+                            <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+                                <span class="badge badge-blue" id="sim-stage-index-badge">STAGE 1 / 9</span>
+                                <span class="badge badge-purple" id="sim-stage-domain-badge">HOST MEMORY &amp; DMA</span>
+                            </div>
+                            <h3 style="font-size:18px; font-weight:800; color:#0f172a; margin-bottom:4px;" id="sim-stage-title">
+                                Raw Audio Ingestion &amp; PCM Normalization
+                            </h3>
+                            <p style="font-size:13px; color:var(--text-muted); line-height:1.5;" id="sim-stage-desc">
+                                Ingests continuous speech audio, fixes length to exactly 16,000 samples (1.00s at 16kHz), and normalizes signed 16-bit integer values to unit floating-point range [-1.0, +1.0].
+                            </p>
+                        </div>
+                        <div id="sim-stage-kpi-badge" style="text-align:right;">
+                            <div style="font-size:11px; font-weight:800; color:#64748b; font-family:var(--font-mono); text-transform:uppercase;">Memory Size</div>
+                            <div style="font-size:18px; font-weight:800; font-family:var(--font-mono); color:var(--accent);" id="sim-stage-size-val">64.0 KB</div>
+                        </div>
+                    </div>
+
+                    <!-- Interactive Live Animation Canvas / Display -->
+                    <div class="sim-canvas-box" id="sim-canvas-container">
+                        <canvas id="sim-canvas" class="sim-canvas" width="1020" height="220"></canvas>
+                        <div id="sim-canvas-overlay-ctrls" style="position:absolute; bottom:12px; right:16px; display:flex; gap:8px; align-items:center;">
+                            <span id="sim-canvas-legend" style="color:#94a3b8; font-family:var(--font-mono); font-size:11px; background:rgba(15,23,42,0.8); padding:3px 8px; border-radius:4px; border:1px solid #334155;">
+                                Fs = 16,000 Hz | 16,000 Samples | [-1.0, +1.0]
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Bit-Level / Signal Formats Specification Matrix -->
+                    <div class="sim-format-grid">
+                        <div class="sim-format-card">
+                            <div class="sim-format-title">📥 Incoming Data Format</div>
+                            <div class="sim-format-val" id="sim-fmt-in-type">PCM 16-bit Signed Integer</div>
+                            <div class="sim-format-sub" id="sim-fmt-in-desc">
+                                Container: <code>RIFF WAV</code> (Single Channel / Mono), Fs = 16,000 Hz, Dynamic Range: <code>[-32768, +32767]</code>, Bitrate: 256 kbps.
+                            </div>
+                        </div>
+
+                        <div class="sim-format-card">
+                            <div class="sim-format-title">⚙️ Mathematical Transformation</div>
+                            <div class="sim-format-val" id="sim-fmt-math-op">x_norm = clip(x / 32768.0, -1, 1)</div>
+                            <div class="sim-format-sub" id="sim-fmt-math-desc">
+                                Converts raw ADC quantization levels into IEEE-754 single-precision float representation, removing DC bias and preparing for spectral framing.
+                            </div>
+                        </div>
+
+                        <div class="sim-format-card">
+                            <div class="sim-format-title">📤 Outgoing Data Format</div>
+                            <div class="sim-format-val" id="sim-fmt-out-type">Float32 [16000]</div>
+                            <div class="sim-format-sub" id="sim-fmt-out-desc">
+                                Contiguous 1D Array of 16,000 single-precision floats. Range: <code>[-1.000, +1.000]</code>. Memory footprint: exactly 64,000 bytes.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Detailed Technical Walkthrough -->
+                    <div class="card" style="background:#f8fafc; border:1px solid var(--border); margin:0;">
+                        <h4 style="font-size:13px; font-weight:800; color:#0f172a; margin-bottom:8px; font-family:var(--font-mono); text-transform:uppercase;">
+                            🔍 Minute Technical Working &amp; Hardware Context
+                        </h4>
+                        <div id="sim-stage-detailed-notes" style="font-size:12.5px; color:#334155; line-height:1.6;">
+                            <!-- Populated dynamically by JS -->
+                        </div>
+                    </div>
+
+                    <!-- Dedicated 4-Config Branching Simulation (Shown on Stage 8) -->
+                    <div id="sim-config-branches-container" style="display:none; margin-top:10px;">
+                        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+                            <h4 style="font-size:14px; font-weight:800; color:#0f172a; font-family:var(--font-mono); text-transform:uppercase;">
+                                🔀 The 4 Hardware Execution Configurations (Down-by-Down Simulation)
+                            </h4>
+                            <span style="font-size:11.5px; color:#64748b; font-family:var(--font-mono);">
+                                Click any config to simulate its exact hardware data path &amp; timing:
+                            </span>
+                        </div>
+
+                        <div class="sim-config-branch-list">
+                            <!-- Config A -->
+                            <div class="sim-config-branch-card active" id="sim-card-config_a" onclick="simSelectConfig('config_a')">
+                                <div class="sim-branch-header">
+                                    <div style="display:flex; align-items:center; gap:8px;">
+                                        <span class="badge badge-gray">CONFIG A</span>
+                                        <strong style="font-size:14px; color:#0f172a;">ARM Cortex-A53 CPU-Only Baseline (ONNX Runtime)</strong>
+                                    </div>
+                                    <div style="display:flex; align-items:center; gap:10px;">
+                                        <span style="font-size:14px; font-weight:800; font-family:var(--font-mono); color:#475569;">15.40 ms (64.9 FPS)</span>
+                                        <span class="badge badge-blue">Host CPU</span>
+                                    </div>
+                                </div>
+                                <div style="font-size:12px; color:#475569;">
+                                    Runs entirely on the quad-core ARM Cortex-A53 processor without FPGA logic or DPU coprocessor.
+                                </div>
+                                <div class="sim-substep-row">
+                                    <div class="sim-substep-chip highlight"><span>1. Audio Librosa STFT (7.20 ms)</span></div>
+                                    <span style="color:#94a3b8;">➡</span>
+                                    <div class="sim-substep-chip highlight"><span>2. NEON FP32 Conv GEMM (8.10 ms)</span></div>
+                                    <span style="color:#94a3b8;">➡</span>
+                                    <div class="sim-substep-chip"><span>3. CPU Softmax (0.10 ms)</span></div>
+                                </div>
+                                <div id="sim-trace-config_a" style="background:#f1f5f9; padding:10px 14px; border-radius:6px; font-size:12px; font-family:var(--font-mono); color:#1e293b; margin-top:8px;">
+                                    [Data Path]: Host Virtual Memory ➡ L1/L2 Cache ➡ Cortex-A53 NEON SIMD ➡ 15.40 ms Total Execution. Power: 3.2 W (20.3 FPS/Watt).
+                                </div>
+                            </div>
+
+                            <!-- Config B -->
+                            <div class="sim-config-branch-card" id="sim-card-config_b" onclick="simSelectConfig('config_b')">
+                                <div class="sim-branch-header">
+                                    <div style="display:flex; align-items:center; gap:8px;">
+                                        <span class="badge badge-blue">CONFIG B</span>
+                                        <strong style="font-size:14px; color:#0f172a;">CPU Preprocessing + AMD DPUCZDX8G B4096 IP Core (VART)</strong>
+                                    </div>
+                                    <div style="display:flex; align-items:center; gap:10px;">
+                                        <span style="font-size:14px; font-weight:800; font-family:var(--font-mono); color:var(--accent);">8.72 ms E2E (1.47 ms Core)</span>
+                                        <span class="badge badge-green">DPU Accelerated</span>
+                                    </div>
+                                </div>
+                                <div style="font-size:12px; color:#475569;">
+                                    Neural convolutions offloaded to physical FPGA DPU IP core. Preprocessing remains on ARM Cortex-A53 CPU.
+                                </div>
+                                <div class="sim-substep-row">
+                                    <div class="sim-substep-chip"><span>1. CPU Log-Mel Preproc (7.20 ms)</span></div>
+                                    <span style="color:#94a3b8;">➡</span>
+                                    <div class="sim-substep-chip"><span>2. Quantize &amp; Cache Flush (0.02 ms)</span></div>
+                                    <span style="color:#94a3b8;">➡</span>
+                                    <div class="sim-substep-chip highlight"><span>3. DPU B4096 Core (1.47 ms — 680 FPS)</span></div>
+                                    <span style="color:#94a3b8;">➡</span>
+                                    <div class="sim-substep-chip"><span>4. IRQ 54 &amp; CPU Head (0.03 ms)</span></div>
+                                </div>
+                                <div id="sim-trace-config_b" style="display:none; background:#f1f5f9; padding:10px 14px; border-radius:6px; font-size:12px; font-family:var(--font-mono); color:#1e293b; margin-top:8px;">
+                                    [Data Path]: CPU Preproc ➡ DDR ➡ AXI DMA ➡ DPUCZDX8G B4096 (37 Ops) ➡ IRQ 54 Interrupt ➡ CPU Softmax Fallback (2 Ops). Bottleneck: CPU Preprocessing takes 82.5% of total time.
+                                </div>
+                            </div>
+
+                            <!-- Config C -->
+                            <div class="sim-config-branch-card" id="sim-card-config_c" onclick="simSelectConfig('config_c')">
+                                <div class="sim-branch-header">
+                                    <div style="display:flex; align-items:center; gap:8px;">
+                                        <span class="badge badge-green">CONFIG C</span>
+                                        <strong style="font-size:14px; color:#0f172a;">Custom Mel GEMM HLS IP + AMD DPUCZDX8G (Full Accelerator)</strong>
+                                    </div>
+                                    <div style="display:flex; align-items:center; gap:10px;">
+                                        <span style="font-size:14px; font-weight:800; font-family:var(--font-mono); color:#059669;">1.87 ms (534.8 FPS)</span>
+                                        <span class="badge badge-green">8.24x Speedup</span>
+                                    </div>
+                                </div>
+                                <div style="font-size:12px; color:#475569;">
+                                    Both audio preprocessing and neural inferencing accelerated in FPGA fabric. Eliminates the CPU Amdahl bottleneck.
+                                </div>
+                                <div class="sim-substep-row">
+                                    <div class="sim-substep-chip highlight"><span>1. Mel HLS IP @ 0xA0010000 (0.35 ms)</span></div>
+                                    <span style="color:#94a3b8;">➡</span>
+                                    <div class="sim-substep-chip"><span>2. AXI DMA S2MM (0.02 ms)</span></div>
+                                    <span style="color:#94a3b8;">➡</span>
+                                    <div class="sim-substep-chip highlight"><span>3. DPU B4096 Core (1.47 ms)</span></div>
+                                    <span style="color:#94a3b8;">➡</span>
+                                    <div class="sim-substep-chip"><span>4. Softmax (0.03 ms)</span></div>
+                                </div>
+                                <div id="sim-trace-config_c" style="display:none; background:#f1f5f9; padding:10px 14px; border-radius:6px; font-size:12px; font-family:var(--font-mono); color:#1e293b; margin-top:8px;">
+                                    [Data Path]: Audio In ➡ AXI DMA MM2S ➡ Mel HLS IP (0xA0010000, 20.6x faster than CPU) ➡ DDR Log-Mel ➡ DPUCZDX8G B4096 ➡ CPU Head. Power: 5.1 W (104.9 FPS/Watt).
+                                </div>
+                            </div>
+
+                            <!-- Config D -->
+                            <div class="sim-config-branch-card" id="sim-card-config_d" onclick="simSelectConfig('config_d')">
+                                <div class="sim-branch-header">
+                                    <div style="display:flex; align-items:center; gap:8px;">
+                                        <span class="badge badge-purple">CONFIG D</span>
+                                        <strong style="font-size:14px; color:#0f172a;">Dual Custom IP Cores (Custom Mel HLS + Custom DS-CNN DPU IP)</strong>
+                                    </div>
+                                    <div style="display:flex; align-items:center; gap:10px;">
+                                        <span style="font-size:14px; font-weight:800; font-family:var(--font-mono); color:#7c3aed;">1.08 ms (925.9 FPS)</span>
+                                        <span class="badge badge-purple">14.26x Peak Speedup</span>
+                                    </div>
+                                </div>
+                                <div style="font-size:12px; color:#475569;">
+                                    100% Custom FPGA Hardware pipeline. Mel HLS streams directly into Custom DPU over on-chip AXI-Stream with ZERO DDR round-trips!
+                                </div>
+                                <div class="sim-substep-row">
+                                    <div class="sim-substep-chip highlight"><span>1. Mel HLS @ 0xA0010000 (0.35 ms)</span></div>
+                                    <span style="color:#94a3b8;">➡</span>
+                                    <div class="sim-substep-chip highlight" style="background:#faf5ff; border-color:#d8b4fe; color:#6b21a8;"><span>2. On-Chip AXI-Stream (0.00 ms — Zero Copy)</span></div>
+                                    <span style="color:#94a3b8;">➡</span>
+                                    <div class="sim-substep-chip highlight"><span>3. Custom DPU @ 0xA0020000 (0.65 ms)</span></div>
+                                    <span style="color:#94a3b8;">➡</span>
+                                    <div class="sim-substep-chip"><span>4. Logits DMA (0.05 ms)</span></div>
+                                </div>
+                                <div id="sim-trace-config_d" style="display:none; background:#f1f5f9; padding:10px 14px; border-radius:6px; font-size:12px; font-family:var(--font-mono); color:#1e293b; margin-top:8px;">
+                                    [Data Path]: Audio DMA ➡ Mel HLS IP (0xA0010000) ➡ Direct AXI4-Stream Bus ➡ Custom DS-CNN DPU IP (0xA0020000) ➡ DMA S2MM Logits. Latency: 1.08 ms, Energy Efficiency: 189.0 FPS/Watt!
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
     </main>
 
     <!-- ── JavaScript Application Logic ── -->
     <script>
-        // ── Tab Navigation Switching ──
+        // ── Tab Navigation Switching (Top Priority) ──
         function switchTab(tabKey) {
-            const tabs = ['demo', 'history', 'challenge', 'viz', 'deliverables', 'hardware'];
+            console.log("[NAV] Switching to tab:", tabKey);
+            const tabs = ['demo', 'simulation', 'history', 'challenge', 'viz', 'deliverables', 'hardware'];
             tabs.forEach(t => {
                 const btn = document.getElementById('tab-btn-' + t);
                 const sec = document.getElementById('sec-' + t);
-                if (btn) btn.classList.toggle('active', t === tabKey);
-                if (sec) sec.classList.toggle('active', t === tabKey);
+                if (btn) {
+                    if (t === tabKey) btn.classList.add('active');
+                    else btn.classList.remove('active');
+                }
+                if (sec) {
+                    if (t === tabKey) {
+                        sec.classList.add('active');
+                        sec.style.display = 'block';
+                    } else {
+                        sec.classList.remove('active');
+                        sec.style.display = 'none';
+                    }
+                }
             });
             window.scrollTo({ top: 0, behavior: 'smooth' });
 
-            if (tabKey === 'viz') {
-                renderChartsOnce();
-            } else if (tabKey === 'history') {
-                renderHistoryView(activeHistoryFilter);
+            try {
+                if (tabKey === 'simulation') {
+                    if (typeof initSimulationView === 'function') {
+                        initSimulationView();
+                    }
+                } else if (tabKey === 'viz') {
+                    if (typeof renderChartsOnce === 'function') {
+                        renderChartsOnce();
+                    }
+                } else if (tabKey === 'history') {
+                    if (typeof renderHistoryView === 'function') {
+                        const filterToUse = (typeof activeHistoryFilter !== 'undefined') ? activeHistoryFilter : 'all';
+                        renderHistoryView(filterToUse);
+                    }
+                }
+            } catch (err) {
+                console.error('[NAV] Error in tab post-switch:', err);
+            }
+        }
+        window.switchTab = switchTab;
+
+        // Auto-bind click events to all portfolio nav buttons
+        function bindNavButtons() {
+            const tabs = ['demo', 'simulation', 'history', 'challenge', 'viz', 'deliverables', 'hardware'];
+            tabs.forEach(t => {
+                const btn = document.getElementById('tab-btn-' + t);
+                if (btn) {
+                    btn.onclick = function(e) {
+                        if (e) e.preventDefault();
+                        switchTab(t);
+                    };
+                }
+            });
+        }
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', bindNavButtons);
+        } else {
+            bindNavButtons();
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        // PIPELINE SIMULATION STATE & INTERACTIVE CONTROLLERS
+        // ══════════════════════════════════════════════════════════════════════
+        let currentSimStep = 0;
+        let simAutoPlayTimer = null;
+        let simAudioSample = 'yes';
+        let simAnimFrameId = null;
+
+        const SIM_STAGES_DATA = [
+            {
+                index: 0,
+                badge: 'STAGE 1 / 9',
+                domain: 'HOST MEMORY & DMA BUFFER',
+                domainClass: 'badge-blue',
+                title: 'Raw Audio Ingestion & PCM Normalization',
+                desc: 'Ingests speech audio, pads or trims buffer to exactly 16,000 samples (1.00s at 16,000 Hz), and normalizes signed 16-bit integer values to unit floating-point range [-1.0, +1.0].',
+                size: '64.0 KB',
+                inType: 'PCM 16-bit Signed Integer',
+                inDesc: 'RIFF WAV container. Format: Mono (1 Channel), Fs = 16,000 Hz, Bitrate = 256 kbps, Dynamic Range: [-32768, +32767].',
+                mathOp: 'x_norm[n] = clip(x_raw[n] / 32768.0, -1.0, +1.0)',
+                mathDesc: 'Scales integer ADC quantization levels to normalized float representation, standardizing signal amplitude across microphones.',
+                outType: 'Float32 [16000]',
+                outDesc: 'Contiguous 1D array of 16,000 single-precision floats. Range: [-1.000, +1.000]. Memory footprint: 64,000 bytes (16k x 4B).',
+                notes: '• <strong>16 kHz Sampling Rate:</strong> Standard acoustic speech recognition frequency capturing human vocal range up to the 8 kHz Nyquist limit.<br>' +
+                       '• <strong>Fixed 1.00s Window:</strong> 16,000 samples accommodate single-keyword utterances ("yes", "stop", "marvin") with consistent tensor dimensions.<br>' +
+                       '• <strong>Zero-Padding / Centering:</strong> Audio shorter than 1s is zero-padded symmetrically; audio longer is energy-centered and trimmed.'
+            },
+            {
+                index: 1,
+                badge: 'STAGE 2 / 9',
+                domain: 'DSP PREPROCESSING BUFFER',
+                domainClass: 'badge-blue',
+                title: 'Short-Time Framing & Hamming Windowing',
+                desc: 'Segments the non-stationary 16,000-sample signal into 98 quasi-stationary overlapping frames (400 samples / 25ms, hop 160 samples / 10ms), multiplying each frame by a Hamming window to prevent spectral leakage.',
+                size: '156.8 KB',
+                inType: 'Float32 [16000]',
+                inDesc: 'Normalized audio waveform array in continuous time sequence.',
+                mathOp: 'w[n] = 0.54 - 0.46 * cos(2πn / 399),  x_w[n] = x[n] * w[n]',
+                mathDesc: 'Hamming window attenuates frame boundaries smoothly to zero, preventing high-frequency Gibbs phenomenon spectral leakage during FFT.',
+                outType: 'Matrix [98, 400] (Float32)',
+                outDesc: '98 time frames, each containing 400 windowed samples (25 ms duration, 60% overlap). Memory: 98 x 400 x 4 bytes = 156.8 KB.',
+                notes: '• <strong>Acoustic Quasi-Stationarity:</strong> Vocal tract articulators move slowly; over 20–30ms speech spectra are approximately constant.<br>' +
+                       '• <strong>Frame Count Formula:</strong> Total frames = floor((16000 - 400) / 160) + 1 = <strong>98 frames</strong>.<br>' +
+                       '• <strong>Overlap:</strong> 160-sample hop (10ms) creates 60% overlap, ensuring no speech phonemes are missed between frame boundaries.'
+            },
+            {
+                index: 2,
+                badge: 'STAGE 3 / 9',
+                domain: 'HIGH-PASS FIR FILTER',
+                domainClass: 'badge-blue',
+                title: 'Pre-Emphasis High-Frequency Filtering',
+                desc: 'Applies a 1st-order finite impulse response (FIR) high-pass filter (α = 0.97) to compensate for human vocal tract glottal roll-off (-6 dB/octave) and boost high-frequency consonant formants.',
+                size: '156.8 KB',
+                inType: 'Matrix [98, 400] (Float32)',
+                inDesc: 'Windowed time-domain audio frames.',
+                mathOp: 'y[n] = x[n] - 0.97 * x[n-1],  H(z) = 1 - 0.97 z⁻¹',
+                mathDesc: 'Differences adjacent samples, attenuating low-frequency vocal drone while boosting high-frequency fricatives and plosives (+6 dB/octave tilt).',
+                outType: 'Matrix [98, 400] (Float32)',
+                outDesc: 'Pre-emphasized speech frames with amplified high-frequency clarity.',
+                notes: '• <strong>Glottal Roll-off Compensation:</strong> Natural human speech energy drops at ~6 dB per octave. Pre-emphasis flattens the spectral tilt.<br>' +
+                       '• <strong>Phonetic Discrimination:</strong> Crucial for distinguishing unvoiced consonants (e.g. "s", "t", "p", "f") which contain high-frequency acoustic energy above 2.5 kHz.<br>' +
+                       '• <strong>Hardware Implementation:</strong> Simple 2-tap FIR filter requiring 1 multiply and 1 subtract per sample, easily pipelined in FPGA DSP48E2 slices.'
+            },
+            {
+                index: 3,
+                badge: 'STAGE 4 / 9',
+                domain: 'RADIX-2 FFT ACCELERATOR',
+                domainClass: 'badge-purple',
+                title: 'Discrete Fourier Transform (512-pt FFT & Power Spectrum)',
+                desc: 'Pads 400-sample frames to 512 samples and computes the 512-point Fast Fourier Transform (FFT) to convert time-domain frames into frequency spectra, calculating the squared magnitude power spectrum.',
+                size: '100.7 KB',
+                inType: 'Matrix [98, 400] (Zero-padded to 512)',
+                inDesc: 'Pre-emphasized time-domain frames zero-padded from 400 to 512 samples for power-of-2 Radix-2 FFT.',
+                mathOp: 'X[k] = Σ x[n] e^(-j 2πkn/512),  P[k] = |X[k]|² / 512',
+                mathDesc: 'Real-FFT produces 257 unique non-redundant frequency bins (k = 0..256), spanning 0 Hz to 8000 Hz with 31.25 Hz resolution.',
+                outType: 'Matrix [98, 257] (Float32)',
+                outDesc: 'Non-negative power spectral density bins across 98 time frames. Memory: 98 x 257 x 4 bytes = 100,744 bytes.',
+                notes: '• <strong>Bin Resolution:</strong> Δf = Fs / N_fft = 16,000 / 512 = <strong>31.25 Hz per bin</strong>.<br>' +
+                       '• <strong>Conjugate Symmetry:</strong> For real input, spectrum is symmetric around Nyquist (8 kHz). Only 257 bins (0..256) are needed.<br>' +
+                       '• <strong>Power Spectrum:</strong> P(k) = (Real² + Imag²) / 512 removes phase information, preserving phonetic energy distribution.'
+            },
+            {
+                index: 4,
+                badge: 'STAGE 5 / 9',
+                domain: 'MEL FILTERBANK / GEMM ACCEL',
+                domainClass: 'badge-purple',
+                title: 'Triangular Mel Filterbank & Matrix Multiply (Mel GEMM)',
+                desc: 'Projects 257 linear FFT frequency bins onto 40 non-linear Mel-scale triangular bandpass filters mimicking human ear cochlear frequency resolution, computed via matrix multiplication (GEMM).',
+                size: '15.68 KB',
+                inType: 'Matrix [98, 257] Power Spectrum',
+                inDesc: 'Power spectral density vectors for each time frame.',
+                mathOp: 'E[98, 40] = P[98, 257] × W_melᵀ[257, 40]',
+                mathDesc: '40 triangular overlapping filters spaced along the Mel pitch scale: m = 2595 log₁₀(1 + f / 700). Mel energy is the dot product of power bins and filter weights.',
+                outType: 'Matrix [98, 40] (Float32)',
+                outDesc: '40 Mel-frequency channel energies across 98 time frames.',
+                notes: '• <strong>Non-linear Pitch Perception:</strong> Human hearing is highly sensitive to small pitch changes below 1 kHz, but logarithmically spaced above 1 kHz.<br>' +
+                       '• <strong>FPGA Mel GEMM Kernel (Config C & D):</strong> In Vivado/HLS, filterbank weights W_mel (40x257) are stored in on-chip BRAM ROM. A systolic DSP MAC pipeline executes all 1,007,440 multiply-accumulates in <strong>0.35 ms</strong> (20.6x faster than CPU!).<br>' +
+                       '• <strong>Data Reduction:</strong> Compresses 257 spectral bins down to 40 psychoacoustically dense channels.'
+            },
+            {
+                index: 5,
+                badge: 'STAGE 6 / 9',
+                domain: 'LOG-COMPRESSION & TENSOR RESHAPE',
+                domainClass: 'badge-blue',
+                title: 'Logarithmic Compression (Log-Mel Spectrogram)',
+                desc: 'Applies natural logarithm compression to mimic human auditory loudness perception (decibels) and transposes the matrix to [40, 98] matching the DS-CNN 2D acoustic feature tensor.',
+                size: '15.68 KB',
+                inType: 'Matrix [98, 40] Mel Energies',
+                inDesc: 'Positive Mel filterbank energy values.',
+                mathOp: 'S[m, t] = ln(max(E[t, m], 1e-6)),  Shape: [1, 40, 98, 1]',
+                mathDesc: 'Decibel-scale dynamic range compression prevents loud speech from dominating soft consonant transitions. Transposed to 40 frequency rows x 98 time columns.',
+                outType: 'Tensor [1, 40, 98, 1] (Float32)',
+                outDesc: 'Batch=1, Height=40 Mel bins, Width=98 Time frames, Channels=1. Footprint: 15,680 bytes.',
+                notes: '• <strong>Weber-Fechner Law:</strong> Human perception of loudness is proportional to the logarithm of acoustic intensity.<br>' +
+                       '• <strong>Epsilon Floor (1e-6):</strong> Prevents ln(0) = -infinity during silence periods.<br>' +
+                       '• <strong>Input Representation for Neural Network:</strong> Treats the audio like a 1-channel 2D image (40x98 spectrogram) ready for 2D convolutional feature extraction.'
+            },
+            {
+                index: 6,
+                badge: 'STAGE 7 / 9',
+                domain: 'VITIS AI INT8 QUANTIZER',
+                domainClass: 'badge-green',
+                title: 'Fixed-Point INT8 Quantization (DPU Format)',
+                desc: 'Converts Float32 Log-Mel features into 8-bit signed integers (INT8) using fixed-point scale factor 2⁴ = 16.0 (fix_point = 4), achieving 75% memory compression for high-throughput DPU execution.',
+                size: '3.92 KB',
+                inType: 'Tensor [1, 40, 98, 1] (Float32)',
+                inDesc: 'Single-precision floating-point Log-Mel spectrogram. Dynamic range: [-12.0, +8.0].',
+                mathOp: 'q = clip(round(x * 2⁴), -128, 127),  Scale: S = 2⁻⁴ = 0.0625',
+                mathDesc: 'Multiplies float features by 16.0 and rounds to nearest integer, clipping overflow to [-128, +127]. Reconstructed float x ≈ q * 0.0625.',
+                outType: 'Tensor [1, 40, 98, 1] (INT8 Signed)',
+                outDesc: 'Array of 3,920 signed 8-bit integers. 75% memory savings compared to Float32! Footprint: exactly 3.92 KB.',
+                notes: '• <strong>Hardware Requirement:</strong> AMD DPUCZDX8G B4096 DSP execution units operate strictly on 8-bit integers (INT8) for maximum compute density.<br>' +
+                       '• <strong>Zero Accuracy Loss:</strong> Fixed-point quantization achieves <strong>97.8% Top-1 accuracy</strong>, virtually identical to 98.1% FP32 baseline (<0.3% delta).<br>' +
+                       '• <strong>DMA Alignment:</strong> 3,920 bytes fit in less than one 4KB memory page, enabling ultra-fast single-burst AXI DMA transfers.'
+            },
+            {
+                index: 7,
+                badge: 'STAGE 8 / 9',
+                domain: '4-CONFIG COMPUTE ENGINES',
+                domainClass: 'badge-purple',
+                title: 'Hardware Compute Engine Execution (The 4 Configurations)',
+                desc: 'Dispatches quantized features across one of the 4 hardware acceleration configurations: Config A (CPU), Config B (DPU), Config C (DPU + Mel HLS), or Config D (Dual Custom IP).',
+                size: '3.92 KB ➡ 48 Bytes Logits',
+                inType: 'Tensor [1, 40, 98, 1] (INT8 or Float32)',
+                inDesc: 'Acoustic feature spectrogram prepared for convolutional neural inferencing.',
+                mathOp: 'Logits[1, 12] = DS-CNN(Spectrogram[40, 98])',
+                mathDesc: 'Executes Conv2D, BatchNorm, ReLU, Depthwise Conv2D, Pointwise Conv2D, and Global Average Pooling to generate 12 class logits.',
+                outType: 'Tensor [1, 12] (Float32 / INT8 Logits)',
+                outDesc: '12 raw class scores corresponding to keywords: "yes", "no", "up", "down", "left", "right", "on", "off", "stop", "go", "_silence_", "_unknown_".',
+                notes: '• <strong>Select and compare below:</strong> See the four interactive cards below to simulate the exact minute process and data path for Config A, B, C, and D!<br>' +
+                       '• <strong>Hardware Saturation:</strong> Config B DPU core completes inference in <strong>1.47 ms</strong> (680 FPS). Config D Dual Custom IP achieves <strong>1.08 ms E2E</strong> (925.9 FPS).'
+            },
+            {
+                index: 8,
+                badge: 'STAGE 9 / 9',
+                domain: 'HOST CPU CLASSIFICATION HEAD',
+                domainClass: 'badge-green',
+                title: 'Softmax Activation, Argmax & Output Keyword Decode',
+                desc: 'Applies numerically stable Softmax to convert raw logits into a normalized probability distribution, picks the winning class via Argmax, and verifies confidence against the detection threshold.',
+                size: '48 Bytes (12 Floats)',
+                inType: 'Tensor [1, 12] Raw Class Logits',
+                inDesc: 'Unnormalized class scores produced by neural network.',
+                mathOp: 'P(y=k|x) = exp(z_k - max(z)) / Σ exp(z_j - max(z)),  ŷ = argmax_k P(y=k)',
+                mathDesc: 'Numerically stable Softmax subtraction prevents floating-point exponent overflow. Selects highest probability keyword.',
+                outType: 'Predicted Keyword String (e.g. "YES")',
+                outDesc: 'Top-1 detected keyword, confidence percentage (e.g. 98.4%), and latency telemetry breakdown.',
+                notes: '• <strong>Thresholding:</strong> If top confidence is below 50.0%, classification defaults to <code>_unknown_</code> to prevent false triggers in noisy cockpit environments.<br>' +
+                       '• <strong>Low Latency Head:</strong> Softmax over 12 classes executes in <strong><0.05 ms</strong> on ARM Cortex-A53 CPU.<br>' +
+                       '• <strong>End-to-End Pipeline Complete:</strong> From audio pressure waves entering the ADC to recognized keyword in memory!'
+            }
+        ];
+
+        function initSimulationView() {
+            try {
+                simGoStep(currentSimStep);
+                renderSimulationCanvas();
+            } catch (err) {
+                console.error("initSimulationView error:", err);
+            }
+        }
+
+        function simGoStep(stepIndex) {
+            try {
+                currentSimStep = Math.max(0, Math.min(8, stepIndex));
+                const data = SIM_STAGES_DATA[currentSimStep];
+                if (!data) return;
+
+                // Update pills
+                for (let i = 0; i <= 8; i++) {
+                    const pill = document.getElementById('sim-pill-' + i);
+                    if (pill) {
+                        pill.classList.toggle('active', i === currentSimStep);
+                        pill.classList.toggle('completed', i < currentSimStep);
+                    }
+                }
+
+                const setTxt = (id, txt) => {
+                    const el = document.getElementById(id);
+                    if (el) el.innerText = txt;
+                };
+                const setHtml = (id, html) => {
+                    const el = document.getElementById(id);
+                    if (el) el.innerHTML = html;
+                };
+
+                setTxt('sim-stage-index-badge', data.badge);
+                const domBadge = document.getElementById('sim-stage-domain-badge');
+                if (domBadge) {
+                    domBadge.innerText = data.domain;
+                    domBadge.className = 'badge ' + data.domainClass;
+                }
+
+                setTxt('sim-stage-title', data.title);
+                setHtml('sim-stage-desc', data.desc);
+                setTxt('sim-stage-size-val', data.size);
+
+                setTxt('sim-fmt-in-type', data.inType);
+                setHtml('sim-fmt-in-desc', data.inDesc);
+                setTxt('sim-fmt-math-op', data.mathOp);
+                setHtml('sim-fmt-math-desc', data.mathDesc);
+                setTxt('sim-fmt-out-type', data.outType);
+                setHtml('sim-fmt-out-desc', data.outDesc);
+                setHtml('sim-stage-detailed-notes', data.notes);
+
+                const prevBtn = document.getElementById('sim-prev-btn');
+                if (prevBtn) prevBtn.disabled = (currentSimStep === 0);
+                const nextBtn = document.getElementById('sim-next-btn');
+                if (nextBtn) nextBtn.disabled = (currentSimStep === 8);
+                setTxt('sim-step-indicator-text', 'STAGE ' + (currentSimStep + 1) + ' OF 9');
+
+                const branchCont = document.getElementById('sim-config-branches-container');
+                if (branchCont) {
+                    branchCont.style.display = (currentSimStep === 7) ? 'block' : 'none';
+                }
+
+                renderSimulationCanvas();
+            } catch (err) {
+                console.error("simGoStep error:", err);
+            }
+        }
+
+        function simNextStep() {
+            if (currentSimStep < 8) {
+                simGoStep(currentSimStep + 1);
+            }
+        }
+
+        function simPrevStep() {
+            if (currentSimStep > 0) {
+                simGoStep(currentSimStep - 1);
+            }
+        }
+
+        function simToggleAutoPlay() {
+            const btn = document.getElementById('sim-autoplay-btn');
+            if (simAutoPlayTimer) {
+                clearInterval(simAutoPlayTimer);
+                simAutoPlayTimer = null;
+                btn.innerHTML = '<span>▶ Auto-Play Simulation</span>';
+                btn.className = 'sim-btn sim-btn-success';
+            } else {
+                if (currentSimStep >= 8) simGoStep(0);
+                btn.innerHTML = '<span>⏸ Pause Simulation</span>';
+                btn.className = 'sim-btn sim-btn-primary';
+                simAutoPlayTimer = setInterval(() => {
+                    if (currentSimStep < 8) {
+                        simNextStep();
+                    } else {
+                        clearInterval(simAutoPlayTimer);
+                        simAutoPlayTimer = null;
+                        btn.innerHTML = '<span>▶ Re-Play Simulation</span>';
+                        btn.className = 'sim-btn sim-btn-success';
+                    }
+                }, 2800);
+            }
+        }
+
+        function simChangeAudioSample(val) {
+            simAudioSample = val;
+            renderSimulationCanvas();
+        }
+
+        function simSelectConfig(cfgKey) {
+            ['config_a', 'config_b', 'config_c', 'config_d'].forEach(k => {
+                const card = document.getElementById('sim-card-' + k);
+                const trace = document.getElementById('sim-trace-' + k);
+                if (card) card.classList.toggle('active', k === cfgKey);
+                if (trace) trace.style.display = (k === cfgKey) ? 'block' : 'none';
+            });
+            renderSimulationCanvas();
+        }
+
+        // ── Web Audio Synthesizer to Listen to Sample ──
+        function simPlayAudioSynth() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const now = ctx.currentTime;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+
+                // Frequencies tuned to speech formants
+                let baseFreq = 220;
+                if (simAudioSample === 'yes') baseFreq = 340;
+                else if (simAudioSample === 'stop') baseFreq = 180;
+                else if (simAudioSample === 'go') baseFreq = 260;
+                else if (simAudioSample === 'marvin') baseFreq = 210;
+
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(baseFreq, now);
+                osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.6, now + 0.3);
+                osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.9, now + 0.6);
+
+                gain.gain.setValueAtTime(0.01, now);
+                gain.gain.linearRampToValueAtTime(0.25, now + 0.1);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.85);
+
+                const btn = document.getElementById('sim-play-synth-btn');
+                btn.style.borderColor = '#059669';
+                btn.style.color = '#059669';
+                setTimeout(() => {
+                    btn.style.borderColor = '';
+                    btn.style.color = '';
+                }, 1000);
+            } catch (e) {
+                console.warn('Web Audio not available:', e);
+            }
+        }
+
+        // ── Interactive HTML5 Canvas Renderer ──
+        function renderSimulationCanvas() {
+            const canvas = document.getElementById('sim-canvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width;
+            const h = canvas.height;
+
+            ctx.clearRect(0, 0, w, h);
+
+            // Dark futuristic grid background
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, w, h);
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1;
+            for (let x = 0; x < w; x += 40) {
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+            }
+            for (let y = 0; y < h; y += 30) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+            }
+
+            const legend = document.getElementById('sim-canvas-legend');
+
+            if (currentSimStep === 0) {
+                // STAGE 1: RAW WAVEFORM
+                if (legend) legend.innerText = 'Signal: ' + simAudioSample.toUpperCase() + ' | Fs = 16,000 Hz | 16k Samples | [-1.0, +1.0]';
+                ctx.strokeStyle = '#38bdf8';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                const midY = h / 2;
+                ctx.moveTo(0, midY);
+                for (let x = 0; x < w; x++) {
+                    const t = x / w;
+                    // Envelope simulating speech syllable
+                    const env = Math.sin(t * Math.PI) * Math.exp(-Math.pow((t - 0.45) * 3, 2));
+                    const wave = Math.sin(t * 90) * 0.6 + Math.sin(t * 180) * 0.3 + Math.sin(t * 360) * 0.15;
+                    const y = midY + wave * env * (h * 0.38);
+                    ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+
+                // Axis line
+                ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath(); ctx.moveTo(0, midY); ctx.lineTo(w, midY); ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Markers
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = '11px JetBrains Mono';
+                ctx.fillText('0.00s (0)', 10, h - 8);
+                ctx.fillText('0.50s (8000)', w / 2 - 40, h - 8);
+                ctx.fillText('1.00s (16000)', w - 90, h - 8);
+                ctx.fillText('+1.0', 10, 20);
+                ctx.fillText('-1.0', 10, h - 22);
+
+            } else if (currentSimStep === 1) {
+                // STAGE 2: FRAMING & WINDOWING
+                if (legend) legend.innerText = 'Framing: 98 Frames | Window: 400 Samples (25ms) | Hop: 160 Samples (10ms)';
+                const midY = h / 2;
+                // Draw faded full wave
+                ctx.strokeStyle = '#334155';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                for (let x = 0; x < w; x++) {
+                    const t = x / w;
+                    const env = Math.sin(t * Math.PI) * Math.exp(-Math.pow((t - 0.45) * 3, 2));
+                    const y = midY + Math.sin(t * 90) * env * (h * 0.3);
+                    if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+
+                // Sliding Window Box around frame 35
+                const winX = w * 0.32;
+                const winW = w * 0.22;
+                ctx.fillStyle = 'rgba(37, 99, 235, 0.12)';
+                ctx.fillRect(winX, 20, winW, h - 40);
+                ctx.strokeStyle = '#2563eb';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(winX, 20, winW, h - 40);
+
+                // Hamming Bell Curve
+                ctx.strokeStyle = '#f59e0b';
+                ctx.lineWidth = 2.5;
+                ctx.beginPath();
+                for (let x = 0; x <= winW; x++) {
+                    const norm = x / winW;
+                    const ham = 0.54 - 0.46 * Math.cos(2 * Math.PI * norm);
+                    const y = h - 30 - ham * (h - 70);
+                    if (x === 0) ctx.moveTo(winX + x, y); else ctx.lineTo(winX + x, y);
+                }
+                ctx.stroke();
+
+                // Highlighted Windowed Signal
+                ctx.strokeStyle = '#38bdf8';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                for (let x = 0; x <= winW; x++) {
+                    const norm = x / winW;
+                    const ham = 0.54 - 0.46 * Math.cos(2 * Math.PI * norm);
+                    const wave = Math.sin(norm * 25) * (h * 0.28) * ham;
+                    const y = midY + wave;
+                    if (x === 0) ctx.moveTo(winX + x, y); else ctx.lineTo(winX + x, y);
+                }
+                ctx.stroke();
+
+                ctx.fillStyle = '#f59e0b';
+                ctx.font = '11px JetBrains Mono';
+                ctx.fillText('Hamming Bell w[n]', winX + 10, 40);
+                ctx.fillStyle = '#38bdf8';
+                ctx.fillText('Frame 35: x_w[n] = x[n] · w[n]', winX + 10, h - 32);
+
+            } else if (currentSimStep === 2) {
+                // STAGE 3: PRE-EMPHASIS FILTER
+                if (legend) legend.innerText = 'Filter: y[n] = x[n] - 0.97 * x[n-1] | Glottal Tilt: +6 dB/octave Boost';
+                const midY = h / 2;
+
+                // Raw vs Pre-emphasized frame
+                ctx.font = '11px JetBrains Mono';
+                ctx.fillStyle = '#64748b';
+                ctx.fillText('Muted Gray: Raw Speech Signal (Attenuated High Frequencies)', 20, 25);
+                ctx.fillStyle = '#10b981';
+                ctx.fillText('Electric Green: Pre-Emphasized y[n] (Amplified Formants & Consonants)', 20, 42);
+
+                // Muted Raw
+                ctx.strokeStyle = '#475569';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                for (let x = 0; x < w; x++) {
+                    const t = x / w;
+                    const y = midY + Math.sin(t * 12) * (h * 0.25);
+                    if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+
+                // Pre-emphasized (high frequency boost)
+                ctx.strokeStyle = '#10b981';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                for (let x = 0; x < w; x++) {
+                    const t = x / w;
+                    const highRipple = Math.sin(t * 80) * 0.35 + Math.sin(t * 140) * 0.2;
+                    const y = midY + (Math.sin(t * 12) * 0.15 + highRipple) * (h * 0.35);
+                    if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+
+            } else if (currentSimStep === 3) {
+                // STAGE 4: FFT SPECTRUM
+                if (legend) legend.innerText = '512-pt FFT | 257 Frequency Bins | 0 Hz to 8000 Hz | Res = 31.25 Hz/bin';
+                const numBars = 75;
+                const barW = (w - 60) / numBars;
+                for (let i = 0; i < numBars; i++) {
+                    const freqRatio = i / numBars;
+                    // Simulate acoustic speech formants (F1 ~ 500Hz, F2 ~ 1500Hz, F3 ~ 2500Hz)
+                    const f1 = Math.exp(-Math.pow((freqRatio - 0.08) * 12, 2)) * 0.9;
+                    const f2 = Math.exp(-Math.pow((freqRatio - 0.22) * 10, 2)) * 0.7;
+                    const f3 = Math.exp(-Math.pow((freqRatio - 0.38) * 8, 2)) * 0.45;
+                    const noise = Math.random() * 0.08;
+                    const mag = Math.min(1.0, f1 + f2 + f3 + noise);
+                    const barH = mag * (h - 70);
+
+                    const grad = ctx.createLinearGradient(0, h - 30, 0, h - 30 - barH);
+                    grad.addColorStop(0, '#1e3a8a');
+                    grad.addColorStop(0.7, '#38bdf8');
+                    grad.addColorStop(1, '#f43f5e');
+
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(30 + i * barW, h - 30 - barH, barW - 2, barH);
+                }
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = '11px JetBrains Mono';
+                ctx.fillText('0 Hz', 30, h - 12);
+                ctx.fillText('1000 Hz (F1)', 30 + numBars * barW * 0.125, h - 12);
+                ctx.fillText('2000 Hz (F2)', 30 + numBars * barW * 0.25, h - 12);
+                ctx.fillText('4000 Hz', 30 + numBars * barW * 0.5, h - 12);
+                ctx.fillText('8000 Hz (Nyquist)', w - 140, h - 12);
+
+            } else if (currentSimStep === 4) {
+                // STAGE 5: MEL FILTERBANK TRIANGLES
+                if (legend) legend.innerText = '40 Mel Triangular Filterbanks | Matrix Multiply: [98, 257] × [257, 40] = [98, 40]';
+                const numFilters = 40;
+                ctx.lineWidth = 1.5;
+
+                for (let m = 0; m < numFilters; m++) {
+                    const normCenter = Math.pow(m / numFilters, 1.8);
+                    const normLeft = (m === 0) ? 0 : Math.pow((m - 1) / numFilters, 1.8);
+                    const normRight = Math.pow((m + 1) / numFilters, 1.8);
+
+                    const xL = 30 + normLeft * (w - 60);
+                    const xC = 30 + normCenter * (w - 60);
+                    const xR = 30 + normRight * (w - 60);
+                    const peakY = 40;
+                    const baseY = h - 35;
+
+                    ctx.strokeStyle = `hsl(${(m * 8) % 360}, 80%, 60%)`;
+                    ctx.beginPath();
+                    ctx.moveTo(xL, baseY);
+                    ctx.lineTo(xC, peakY);
+                    ctx.lineTo(xR, baseY);
+                    ctx.stroke();
+                }
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '12px JetBrains Mono';
+                ctx.fillText('40 Triangular Filterbank Channels (Non-linear Mel Spacing)', 40, 25);
+
+            } else if (currentSimStep === 5) {
+                // STAGE 6: 2D LOG-MEL SPECTROGRAM HEATMAP
+                if (legend) legend.innerText = 'Log-Mel Spectrogram Heatmap: 40 Mel Bins (Rows) × 98 Time Frames (Cols)';
+                const cols = 98;
+                const rows = 40;
+                const cellW = (w - 60) / cols;
+                const cellH = (h - 60) / rows;
+
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        // Synthetic spectrogram features
+                        const t = c / cols;
+                        const f = r / rows;
+                        const formant1 = Math.exp(-Math.pow((f - 0.2) * 5, 2)) * Math.sin(t * Math.PI) * 0.9;
+                        const formant2 = Math.exp(-Math.pow((f - 0.6) * 6, 2)) * Math.sin((t - 0.2) * Math.PI) * 0.7;
+                        const val = Math.max(0, Math.min(1.0, formant1 + formant2 + (Math.sin(c * 0.3) * 0.1)));
+
+                        // Colormap: Deep dark -> Violet -> Amber -> Red/White
+                        const red = Math.floor(val * 255);
+                        const green = Math.floor(Math.pow(val, 2) * 200);
+                        const blue = Math.floor((1 - val) * 80 + val * 50);
+
+                        ctx.fillStyle = `rgb(${red}, ${green}, ${blue})`;
+                        ctx.fillRect(30 + c * cellW, 30 + (rows - 1 - r) * cellH, cellW + 0.5, cellH + 0.5);
+                    }
+                }
+
+                ctx.fillStyle = '#cbd5e1';
+                ctx.font = '11px JetBrains Mono';
+                ctx.fillText('Mel 40 (8kHz)', 25, 22);
+                ctx.fillText('Mel 0 (20Hz)', 25, h - 14);
+                ctx.fillText('t = 0.0s', 30, h - 14);
+                ctx.fillText('t = 1.0s (98 Frames)', w - 170, h - 14);
+
+            } else if (currentSimStep === 6) {
+                // STAGE 7: BIT-LEVEL INT8 QUANTIZER
+                if (legend) legend.innerText = 'Quantizer: fix_point = 4 (Scale = 16.0) | Range: [-128, +127] | 3.92 KB Tensor';
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '14px JetBrains Mono';
+                ctx.fillText('FP32 Floating Value:  +1.8500', 40, 45);
+                ctx.fillText('Scale Multiplier:    × 16.0 (2⁴)', 40, 70);
+                ctx.fillText('Fixed Integer:       = 29.6 ➡ Rounded: 30 (INT8)', 40, 95);
+
+                // Draw 8-bit registers
+                ctx.fillText("Binary Representation (8-bit signed two's complement):", 40, 135);
+                const bits = ['0', '0', '0', '1', '1', '1', '1', '0']; // 30 in binary
+                const bitW = 44;
+                const bitH = 40;
+                for (let b = 0; b < 8; b++) {
+                    const bx = 40 + b * (bitW + 8);
+                    ctx.fillStyle = (bits[b] === '1') ? '#0284c7' : '#1e293b';
+                    ctx.fillRect(bx, 150, bitW, bitH);
+                    ctx.strokeStyle = '#38bdf8';
+                    ctx.lineWidth = 1.5;
+                    ctx.strokeRect(bx, 150, bitW, bitH);
+
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = '16px JetBrains Mono';
+                    ctx.fillText(bits[b], bx + 16, 176);
+                    ctx.fillStyle = '#64748b';
+                    ctx.font = '10px JetBrains Mono';
+                    ctx.fillText('b' + (7 - b), bx + 14, 202);
+                }
+
+                ctx.fillStyle = '#10b981';
+                ctx.font = '14px JetBrains Mono';
+                ctx.fillText('Hex: 0x1E  |  Reconstructed Float: 30 × 0.0625 = +1.8750 (Quantization Error: 0.025)', 450, 95);
+
+            } else if (currentSimStep === 7) {
+                // STAGE 8: HARDWARE ARCHITECTURE BLOCK DIAGRAM
+                if (legend) legend.innerText = 'Active Engine Architecture | Select Config A, B, C, or D in the cards below';
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '13px JetBrains Mono';
+                ctx.fillText('AMD Kria KV260 SOM Hardware Execution Pipeline', 30, 25);
+
+                // Blocks
+                const drawBlock = (x, y, bw, bh, title, sub, color, border) => {
+                    ctx.fillStyle = color;
+                    ctx.fillRect(x, y, bw, bh);
+                    ctx.strokeStyle = border;
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(x, y, bw, bh);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = '12px JetBrains Mono';
+                    ctx.fillText(title, x + 10, y + 22);
+                    ctx.fillStyle = '#cbd5e1';
+                    ctx.font = '10px JetBrains Mono';
+                    ctx.fillText(sub, x + 10, y + 38);
+                };
+
+                drawBlock(30, 60, 160, 60, '1. Audio Ingestion', 'Host DDR / I2S ADC', '#1e293b', '#475569');
+                drawBlock(250, 60, 180, 60, '2. Preprocessing', 'Mel HLS / CPU Librosa', '#1e3a8a', '#3b82f6');
+                drawBlock(490, 60, 200, 60, '3. Neural Inference', 'DPU B4096 / Custom IP', '#4c1d95', '#8b5cf6');
+                drawBlock(750, 60, 180, 60, '4. Softmax & Output', 'Cortex-A53 Head', '#064e3b', '#10b981');
+
+                // Arrows
+                const drawArrow = (x1, y1, x2, y2) => {
+                    ctx.strokeStyle = '#38bdf8';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.beginPath();
+                    ctx.moveTo(x2, y2 - 5);
+                    ctx.lineTo(x2 + 8, y2);
+                    ctx.lineTo(x2, y2 + 5);
+                    ctx.fill();
+                };
+                drawArrow(190, 90, 245, 90);
+                drawArrow(430, 90, 485, 90);
+                drawArrow(690, 90, 745, 90);
+
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = '11px JetBrains Mono';
+                ctx.fillText('AXI-Stream / DMA Bus', 190, 115);
+                ctx.fillText('VART / Direct FIFO', 435, 115);
+                ctx.fillText('12-Logit DMA', 695, 115);
+
+            } else if (currentSimStep === 8) {
+                // STAGE 9: OUTPUT 12-CLASS PROBABILITIES
+                if (legend) legend.innerText = 'Detection Result: "YES" (98.4% Confidence) | Softmax Argmax Complete';
+                const keywords = ['yes', 'no', 'up', 'down', 'left', 'right', 'on', 'off', 'stop', 'go', '_silence_', '_unknown_'];
+                const probs = [0.984, 0.002, 0.001, 0.001, 0.001, 0.001, 0.002, 0.001, 0.003, 0.002, 0.001, 0.001];
+
+                const barH = 12;
+                const spacing = 16;
+                for (let k = 0; k < keywords.length; k++) {
+                    const y = 30 + k * spacing;
+                    const isWinner = (k === 0);
+                    ctx.fillStyle = isWinner ? '#38bdf8' : '#64748b';
+                    ctx.font = (isWinner ? 'bold ' : '') + '11px JetBrains Mono';
+                    ctx.fillText(keywords[k].padEnd(10, ' '), 30, y + 10);
+
+                    // Bar
+                    const maxBarW = 380;
+                    const bW = Math.max(3, probs[k] * maxBarW);
+                    ctx.fillStyle = isWinner ? '#059669' : '#334155';
+                    ctx.fillRect(130, y, bW, barH);
+
+                    // Text
+                    ctx.fillStyle = isWinner ? '#34d399' : '#94a3b8';
+                    ctx.fillText((probs[k] * 100).toFixed(1) + '%', 140 + bW, y + 10);
+                }
+
+                // Winner Celebration Badge
+                ctx.fillStyle = 'rgba(5, 150, 105, 0.15)';
+                ctx.fillRect(600, 45, 340, 130);
+                ctx.strokeStyle = '#10b981';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(600, 45, 340, 130);
+
+                ctx.fillStyle = '#34d399';
+                ctx.font = 'bold 12px JetBrains Mono';
+                ctx.fillText('🏆 KEYWORD DECISION CONFIRMED', 620, 75);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 36px Plus Jakarta Sans';
+                ctx.fillText('"' + simAudioSample.toUpperCase() + '"', 620, 125);
+                ctx.fillStyle = '#94a3b8';
+                ctx.font = '12px JetBrains Mono';
+                ctx.fillText('Confidence: 98.4% | E2E Latency: 1.08 ms', 620, 155);
             }
         }
 
@@ -4208,11 +5505,13 @@ HTML_PAGE = """<!DOCTYPE html>
 
         // Initialize table on load
         window.addEventListener('DOMContentLoaded', () => {
-            initTestMatrix();
-            initKeywordsMatrix();
-            initHistory();
-            const engSelect = document.getElementById('engine-select');
-            updatePipelineDiagram(engSelect ? engSelect.value : 'cpu');
+            try { initTestMatrix(); } catch(e) { console.error('initTestMatrix error:', e); }
+            try { initKeywordsMatrix(); } catch(e) { console.error('initKeywordsMatrix error:', e); }
+            try { initHistory(); } catch(e) { console.error('initHistory error:', e); }
+            try {
+                const engSelect = document.getElementById('engine-select');
+                updatePipelineDiagram(engSelect ? engSelect.value : 'cpu');
+            } catch(e) { console.error('updatePipelineDiagram error:', e); }
         });
     </script>
 </body>
@@ -4229,6 +5528,7 @@ class KWSRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
+            self.send_header("Connection", "close")
             self.end_headers()
             self.wfile.write(body)
         except Exception as err:
@@ -4237,10 +5537,17 @@ class KWSRequestHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path in ["/", "/index.html"]:
+            encoded_html = HTML_PAGE.encode("utf-8")
             self.send_response(200)
-            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(encoded_html)))
+            self.send_header("Connection", "close")
             self.end_headers()
-            self.wfile.write(HTML_PAGE.encode("utf-8"))
+            self.wfile.write(encoded_html)
+        elif parsed.path == "/favicon.ico":
+            self.send_response(204)
+            self.end_headers()
+            return
         elif parsed.path == "/api/manifest":
             manifest_p = ROOT / "data" / "test_inputs" / "test_manifest.json"
             if manifest_p.exists():
@@ -4270,6 +5577,7 @@ class KWSRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header("Content-Type", "audio/wav")
                 self.send_header("Content-Length", str(len(data)))
+                self.send_header("Connection", "close")
                 self.end_headers()
                 self.wfile.write(data)
             else:
@@ -4279,6 +5587,18 @@ class KWSRequestHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urlparse(self.path)
+        if parsed.path == "/api/client_error":
+            try:
+                content_length = int(self.headers.get("Content-Length", "0"))
+                if content_length > 0:
+                    err_bytes = self.rfile.read(content_length)
+                    err_info = json.loads(err_bytes.decode("utf-8"))
+                    print(f"[CLIENT BROWSER TELEMETRY] {err_info}", flush=True)
+            except Exception:
+                pass
+            self._send_json(200, {"status": "ok"})
+            return
+
         if parsed.path == "/api/history_clear":
             hist_path = ROOT / "results" / "inference_history.json"
             if hist_path.exists():
@@ -4632,9 +5952,13 @@ class KWSRequestHandler(http.server.SimpleHTTPRequestHandler):
             self._send_json(400, {"error": str(exc)})
 
 
+class ThreadedHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
+    daemon_threads = True
+    allow_reuse_address = True
+
+
 def run_server():
-    socketserver.TCPServer.allow_reuse_address = True
-    server = socketserver.TCPServer(("", PORT), KWSRequestHandler)
+    server = ThreadedHTTPServer(("", PORT), KWSRequestHandler)
 
     # Pre-warm physical DPU runner so XIR graph deserialization happens at boot, not during live inferencing
     try:
