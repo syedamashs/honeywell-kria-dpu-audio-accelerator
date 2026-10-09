@@ -53,6 +53,8 @@ from pipeline.utils import KEYWORDS, LABEL2IDX, SAMPLE_RATE, pad_or_trim
 PORT = int(os.environ.get("PORT", 8080))
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 MAX_REQUEST_BYTES = 15 * 1024 * 1024
+_cached_cpu_runner = None
+
 def transcribe_audio(audio: np.ndarray) -> str:
     """Optional speech-to-text fallback using lightweight speech_recognition if installed."""
     try:
@@ -4282,10 +4284,12 @@ class KWSRequestHandler(http.server.SimpleHTTPRequestHandler):
                 # Config A: CPU Execution (Strictly executes on ARM Cortex-A53 CPU, NEVER invokes DPU)
                 t4 = time.perf_counter_ns()
                 try:
-                    from benchmarks.cpu_baseline import CPUModelRunner
-                    onnx_p = ROOT / "models" / "onnx" / "dscnn_medium.onnx"
-                    runner = CPUModelRunner(onnx_p)
-                    logits_by_window = [runner(features) for features in features_by_window]
+                    global _cached_cpu_runner
+                    if _cached_cpu_runner is None:
+                        from benchmarks.cpu_baseline import CPUModelRunner
+                        onnx_p = ROOT / "models" / "onnx" / "dscnn_medium.onnx"
+                        _cached_cpu_runner = CPUModelRunner(onnx_p)
+                    logits_by_window = [_cached_cpu_runner(features) for features in features_by_window]
                 except Exception as cpu_exc:
                     print(f"[CPU ENGINE] Running calibrated ARM Cortex-A53 CPU workload ({cpu_exc})", flush=True)
                     # Real floating-point matrix multiplication executing on Cortex-A53 CPU cores
@@ -4525,6 +4529,18 @@ def run_server():
             print("[*] >>> SUCCESS: VART DPU Runner pre-warmed! Cold-start overhead eliminated. <<<", flush=True)
     except Exception as exc:
         print(f"[*] Note on DPU pre-warming: {exc}", flush=True)
+
+    # Pre-warm ARM Cortex-A53 CPU ONNX runner
+    try:
+        from benchmarks.cpu_baseline import CPUModelRunner
+        onnx_p = ROOT / "models" / "onnx" / "dscnn_medium.onnx"
+        if onnx_p.exists():
+            print("[*] Pre-warming ARM Cortex-A53 CPU ONNX Runner...", flush=True)
+            _cached_cpu_runner = CPUModelRunner(onnx_p)
+            _cached_cpu_runner(np.zeros((40, 98), dtype=np.float32))
+            print("[*] >>> SUCCESS: ARM CPU ONNX Runner pre-warmed! <<<", flush=True)
+    except Exception as exc:
+        print(f"[*] Note on CPU pre-warming: {exc}", flush=True)
 
     print("=" * 75)
     print(f" AMD Kria KV260 Audio KWS Web UI started on http://localhost:{PORT}")

@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 import time
 from pathlib import Path
 from typing import Any, Dict, List
@@ -25,6 +26,10 @@ import numpy as np
 
 os.environ["ORT_LOGGING_LEVEL"] = "3"
 import onnxruntime as ort
+try:
+    ort.set_default_logger_severity(3)
+except Exception:
+    pass
 try:
     from onnxruntime.quantization import QuantType, quantize_dynamic
 except (ImportError, Exception):
