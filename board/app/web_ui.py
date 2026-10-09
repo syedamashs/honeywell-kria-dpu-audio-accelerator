@@ -30,6 +30,7 @@ import csv
 import http.server
 import json
 import os
+os.environ["ORT_LOGGING_LEVEL"] = "3"
 import socketserver
 import sys
 import time
@@ -4311,7 +4312,7 @@ class KWSRequestHandler(http.server.SimpleHTTPRequestHandler):
                         cpu_results.append(logits)
                     logits_by_window = cpu_results
                 t5 = time.perf_counter_ns()
-                cpu_infer_ms = max(1.0, (t5 - t4) / 1e6 / max(1, len(features_by_window)))
+                cpu_infer_ms = max(1.0, (t5 - t4) / 1e6)
 
             # 5. Transcription (Speech-to-Text assistance when available)
             client_transcript = str(req.get("transcript", "")).strip()

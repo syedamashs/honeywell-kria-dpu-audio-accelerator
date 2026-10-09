@@ -16,12 +16,14 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
+import os
 import time
 from pathlib import Path
 from typing import Any, Dict, List
 
 import numpy as np
+
+os.environ["ORT_LOGGING_LEVEL"] = "3"
 import onnxruntime as ort
 try:
     from onnxruntime.quantization import QuantType, quantize_dynamic
@@ -86,6 +88,8 @@ def load_manifest() -> List[Dict[str, Any]]:
 class CPUModelRunner:
     def __init__(self, model_path: Path, threads: int = 1):
         opts = ort.SessionOptions()
+        opts.log_severity_level = 3
+        opts.log_verbosity_level = 0
         opts.intra_op_num_threads = threads
         opts.inter_op_num_threads = 1
         opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
