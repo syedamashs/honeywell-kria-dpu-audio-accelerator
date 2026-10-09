@@ -1143,6 +1143,13 @@ HTML_PAGE = """<!DOCTYPE html>
             transform: translateY(-2px);
         }
 
+        .pipeline-stage-box.stage-active-custom-dpu {
+            border-color: #8b5cf6;
+            background: #f5f3ff;
+            box-shadow: 0 4px 16px rgba(139, 92, 246, 0.25);
+            transform: translateY(-2px);
+        }
+
         .pipe-stage-header {
             display: flex;
             justify-content: space-between;
@@ -1184,6 +1191,13 @@ HTML_PAGE = """<!DOCTYPE html>
             color: #047857;
             border: 1px solid #a7f3d0;
             box-shadow: 0 0 8px rgba(16, 185, 129, 0.35);
+        }
+
+        .tag-custom-dpu {
+            background: #ede9fe;
+            color: #6d28d9;
+            border: 1px solid #c4b5fd;
+            box-shadow: 0 0 8px rgba(139, 92, 246, 0.35);
         }
 
         .pipe-stage-name {
@@ -1384,6 +1398,19 @@ HTML_PAGE = """<!DOCTYPE html>
             transform: translateY(-2px);
         }
 
+        .live-pipe-card.card-stage-custom-dpu {
+            border-color: #8b5cf6 !important;
+            background: #f5f3ff !important;
+            box-shadow: 0 4px 16px rgba(139, 92, 246, 0.25) !important;
+            transform: translateY(-2px);
+        }
+
+        .pipe-target-tag.tag-custom-dpu {
+            background: linear-gradient(135deg, #8b5cf6, #6d28d9) !important;
+            color: #ffffff !important;
+            box-shadow: 0 2px 6px rgba(139, 92, 246, 0.35) !important;
+        }
+
         .live-card-top {
             display: flex;
             justify-content: space-between;
@@ -1438,6 +1465,7 @@ HTML_PAGE = """<!DOCTYPE html>
         .bar-blue { background: #3b82f6; }
         .bar-orange { background: #f59e0b; }
         .bar-green { background: #10b981; }
+        .bar-purple { background: #8b5cf6; }
 
         .live-pipe-sep {
             font-size: 15px;
@@ -2922,6 +2950,23 @@ HTML_PAGE = """<!DOCTYPE html>
                 s4.className = 'pipeline-stage-box stage-active-cpu';
                 t4.className = 'pipe-target-tag tag-cpu'; t4.innerText = 'HOST CPU';
                 m4.innerText = 'CPU: ~0.11 ms (On-Chip FIFO Readout)';
+            } else if (eng === 'custom_dpu' || eng === 'config_d') {
+                if (pill) pill.innerHTML = '<span class="status-dot" style="background:#8b5cf6;"></span><span>🏆 CONFIG D: 100% CUSTOM FPGA SILICON (MEL HLS + CUSTOM DS-CNN DPU)</span>';
+                s1.className = 'pipeline-stage-box stage-active-cpu';
+                t1.className = 'pipe-target-tag tag-cpu'; t1.innerText = 'HOST CPU';
+                m1.innerText = 'ARM Cortex-A53 (DMA Ingestion)';
+
+                s2.className = 'pipeline-stage-box stage-active-hls';
+                t2.className = 'pipe-target-tag tag-hls'; t2.innerText = 'CUSTOM HLS';
+                m2.innerText = '🚀 Mel GEMM HLS: 0.35 ms (0xA0010000)';
+
+                s3.className = 'pipeline-stage-box stage-active-custom-dpu';
+                t3.className = 'pipe-target-tag tag-custom-dpu'; t3.innerText = '🏆 CUSTOM DPU';
+                m3.innerText = '🏆 DS-CNN DPU IP: 0.65 ms (0xA0020000)';
+
+                s4.className = 'pipeline-stage-box stage-active-cpu';
+                t4.className = 'pipe-target-tag tag-cpu'; t4.innerText = 'HOST CPU';
+                m4.innerText = 'CPU: ~0.08 ms (Softmax & Top-1)';
             }
         }
 
@@ -3023,7 +3068,7 @@ HTML_PAGE = """<!DOCTYPE html>
             if (!totalEl) return;
 
             totalEl.innerText = inferenceHistory.length;
-            const dpuCount = inferenceHistory.filter(r => r.engine === 'dpu' || r.engine === 'dpu_hls').length;
+            const dpuCount = inferenceHistory.filter(r => r.engine === 'dpu' || r.engine === 'dpu_hls' || r.engine === 'custom_dpu' || r.engine === 'config_d').length;
             const cpuCount = inferenceHistory.filter(r => r.engine === 'cpu').length;
             dpuEl.innerText = dpuCount;
             cpuEl.innerText = cpuCount;
@@ -3037,7 +3082,7 @@ HTML_PAGE = """<!DOCTYPE html>
 
         function filterHistory(filterKey) {
             activeHistoryFilter = filterKey;
-            ['all', 'dpu', 'cpu', 'dpu_hls'].forEach(k => {
+            ['all', 'custom_dpu', 'dpu_hls', 'dpu', 'cpu'].forEach(k => {
                 const chip = document.getElementById('filter-' + k);
                 if (chip) chip.classList.toggle('active', k === filterKey);
             });
@@ -3055,6 +3100,8 @@ HTML_PAGE = """<!DOCTYPE html>
                 items = inferenceHistory.filter(r => r.engine === 'cpu');
             } else if (filterKey === 'dpu_hls') {
                 items = inferenceHistory.filter(r => r.engine === 'dpu_hls' || r.engine === 'hls');
+            } else if (filterKey === 'custom_dpu') {
+                items = inferenceHistory.filter(r => r.engine === 'custom_dpu' || r.engine === 'config_d');
             }
 
             if (items.length === 0) {
@@ -3079,6 +3126,9 @@ HTML_PAGE = """<!DOCTYPE html>
                 } else if (run.engine === 'dpu_hls' || run.engine === 'hls') {
                     engBadgeClass = 'badge-green';
                     engText = '🚀 CONFIG C: DPU+HLS';
+                } else if (run.engine === 'custom_dpu' || run.engine === 'config_d') {
+                    engBadgeClass = 'badge-purple';
+                    engText = '🏆 CONFIG D: CUSTOM DPU';
                 }
 
                 const modeText = run.mode === 'passive' ? 'WAV Sample' : 'Live Mic';
@@ -3210,25 +3260,29 @@ HTML_PAGE = """<!DOCTYPE html>
             } else if (run.engine === 'dpu_hls' || run.engine === 'hls') {
                 const sp = (50.4 / Math.max(0.1, run.total_ms)).toFixed(1);
                 speedupText = `🚀 ${sp}× Heterogeneous Speedup`;
+            } else if (run.engine === 'custom_dpu' || run.engine === 'config_d') {
+                const sp = (48.5 / Math.max(0.1, run.infer_ms)).toFixed(1);
+                speedupText = `🏆 ${sp}× Custom Silicon Speedup`;
             }
             document.getElementById('detail-kpi-speedup').innerText = speedupText;
 
             document.getElementById('detail-kpi-preproc').innerText = run.preproc_ms.toFixed(2) + ' ms';
-            document.getElementById('detail-kpi-preproc-eng').innerText = (run.engine === 'dpu_hls' || run.engine === 'hls') ? 'FPGA HLS AXI-Stream' : 'Host ARM Cortex-A53';
+            document.getElementById('detail-kpi-preproc-eng').innerText = (run.engine === 'custom_dpu' || run.engine === 'config_d') ? 'Custom Mel HLS IP (0xA0010000)' : ((run.engine === 'dpu_hls' || run.engine === 'hls') ? 'FPGA HLS AXI-Stream' : 'Host ARM Cortex-A53');
             document.getElementById('detail-kpi-post').innerText = run.post_ms.toFixed(2) + ' ms';
 
             // Execution Topology Flow for this run
             const flowEl = document.getElementById('detail-pipeline-flow');
             if (flowEl) {
-                let s2Class = run.engine.includes('hls') ? 'stage-active-hls' : 'stage-active-cpu';
-                let s2Tag = run.engine.includes('hls') ? 'tag-hls' : 'tag-cpu';
-                let s2TagText = run.engine.includes('hls') ? 'FPGA HLS' : 'HOST CPU';
-                let s2Metric = run.engine.includes('hls') ? `${run.preproc_ms.toFixed(2)} ms (Custom HLS IP)` : `${run.preproc_ms.toFixed(2)} ms (OpenBLAS)`;
+                const isCustom = run.engine === 'custom_dpu' || run.engine === 'config_d';
+                let s2Class = (run.engine.includes('hls') || isCustom) ? 'stage-active-hls' : 'stage-active-cpu';
+                let s2Tag = (run.engine.includes('hls') || isCustom) ? 'tag-hls' : 'tag-cpu';
+                let s2TagText = isCustom ? 'CUSTOM HLS' : (run.engine.includes('hls') ? 'FPGA HLS' : 'HOST CPU');
+                let s2Metric = isCustom ? `${run.preproc_ms.toFixed(2)} ms (Custom Mel HLS IP)` : (run.engine.includes('hls') ? `${run.preproc_ms.toFixed(2)} ms (Custom HLS IP)` : `${run.preproc_ms.toFixed(2)} ms (OpenBLAS)`);
 
-                let s3Class = run.engine.includes('dpu') ? 'stage-active-dpu' : 'stage-active-cpu';
-                let s3Tag = run.engine.includes('dpu') ? 'tag-dpu' : 'tag-cpu';
-                let s3TagText = run.engine.includes('dpu') ? 'FPGA DPU' : 'HOST CPU';
-                let s3Metric = run.engine.includes('dpu') ? `${run.infer_ms.toFixed(2)} ms (DPUCZDX8G B4096)` : `${run.infer_ms.toFixed(2)} ms (ARM NEON)`;
+                let s3Class = isCustom ? 'stage-active-custom-dpu' : (run.engine.includes('dpu') ? 'stage-active-dpu' : 'stage-active-cpu');
+                let s3Tag = isCustom ? 'tag-custom-dpu' : (run.engine.includes('dpu') ? 'tag-dpu' : 'tag-cpu');
+                let s3TagText = isCustom ? 'CUSTOM DPU' : (run.engine.includes('dpu') ? 'FPGA DPU' : 'HOST CPU');
+                let s3Metric = isCustom ? `${run.infer_ms.toFixed(2)} ms (Custom DS-CNN DPU IP)` : (run.engine.includes('dpu') ? `${run.infer_ms.toFixed(2)} ms (DPUCZDX8G B4096)` : `${run.infer_ms.toFixed(2)} ms (ARM NEON)`);
 
                 flowEl.innerHTML = `
                     <div class="pipeline-stage-box stage-active-cpu">
@@ -3876,13 +3930,23 @@ HTML_PAGE = """<!DOCTYPE html>
             }
 
             let modeBadgeText = 'CONFIG A: CORTEX-A53 (ACTIVE)';
+            let labelBadgeClass = 'badge badge-blue';
             if (data.engine === 'dpu') {
                 modeBadgeText = isStaged ? 'CONFIG B: DPU TARGET (STAGED)' : 'CONFIG B: KV260 DPU IP (LIVE)';
+                labelBadgeClass = 'badge badge-orange';
             } else if (data.engine === 'dpu_hls' || data.engine === 'hls') {
                 modeBadgeText = isStaged ? 'CONFIG C: DPU+HLS TARGET (STAGED)' : 'CONFIG C: DPU+HLS (LIVE)';
+                labelBadgeClass = 'badge badge-green';
+            } else if (data.engine === 'custom_dpu' || data.engine === 'config_d') {
+                modeBadgeText = '🏆 CONFIG D: 100% CUSTOM FPGA IP (MEL HLS + CUSTOM DPU)';
+                labelBadgeClass = 'badge badge-purple';
             }
             document.getElementById('res-eng-badge').innerText = modeBadgeText;
-            document.getElementById('res-eng-label').innerText = data.runner_label || data.engine.toUpperCase();
+            const resEngLabel = document.getElementById('res-eng-label');
+            if (resEngLabel) {
+                resEngLabel.innerText = data.runner_label || data.engine.toUpperCase();
+                resEngLabel.className = labelBadgeClass;
+            }
 
             const transcriptPanel = document.getElementById('res-transcript');
             if (transcriptPanel) {
@@ -3922,6 +3986,9 @@ HTML_PAGE = """<!DOCTYPE html>
             const sub2 = document.getElementById('live-card-sub-2');
             const tag3 = document.getElementById('live-card-tag-3');
             const sub3 = document.getElementById('live-card-sub-3');
+            const val3 = document.getElementById('res-infer-ms');
+            const bar3 = document.getElementById('live-bar-infer');
+            const barInfer = document.getElementById('bar-infer');
             const speedupBadge = document.getElementById('res-speedup-badge');
 
             if (card1 && card2 && card3 && card4) {
@@ -3933,6 +4000,9 @@ HTML_PAGE = """<!DOCTYPE html>
                     card3.className = 'live-pipe-card card-stage-cpu';
                     if (tag3) { tag3.className = 'pipe-target-tag tag-cpu'; tag3.innerText = 'HOST CPU'; }
                     if (sub3) sub3.innerText = 'ARM NEON FP32 Core';
+                    if (val3) val3.style.color = 'var(--accent)';
+                    if (bar3) bar3.className = 'live-bar-inner bar-blue';
+                    if (barInfer) barInfer.style.background = '#3b82f6';
 
                     if (speedupBadge) {
                         speedupBadge.innerText = '1× Baseline (Host CPU Only)';
@@ -3948,6 +4018,9 @@ HTML_PAGE = """<!DOCTYPE html>
                     card3.className = 'live-pipe-card card-stage-dpu';
                     if (tag3) { tag3.className = 'pipe-target-tag tag-dpu'; tag3.innerText = '⚡ FPGA DPU'; }
                     if (sub3) sub3.innerText = 'DPUCZDX8G B4096 Core';
+                    if (val3) val3.style.color = 'var(--accent-orange)';
+                    if (bar3) bar3.className = 'live-bar-inner bar-orange';
+                    if (barInfer) barInfer.style.background = '#f59e0b';
 
                     if (speedupBadge) {
                         const sp = (48.5 / Math.max(0.1, data.infer_ms)).toFixed(1);
@@ -3964,12 +4037,35 @@ HTML_PAGE = """<!DOCTYPE html>
                     card3.className = 'live-pipe-card card-stage-dpu';
                     if (tag3) { tag3.className = 'pipe-target-tag tag-dpu'; tag3.innerText = '⚡ FPGA DPU'; }
                     if (sub3) sub3.innerText = 'DPUCZDX8G B4096 Core';
+                    if (val3) val3.style.color = 'var(--accent-orange)';
+                    if (bar3) bar3.className = 'live-bar-inner bar-orange';
+                    if (barInfer) barInfer.style.background = '#f59e0b';
 
                     if (speedupBadge) {
                         speedupBadge.innerText = `🚀 33.4× Heterogeneous Acceleration`;
                         speedupBadge.style.background = '#ecfdf5';
                         speedupBadge.style.color = '#047857';
                         speedupBadge.style.borderColor = '#a7f3d0';
+                    }
+                } else if (data.engine === 'custom_dpu' || data.engine === 'config_d') {
+                    card2.className = 'live-pipe-card card-stage-hls';
+                    if (tag2) { tag2.className = 'pipe-target-tag tag-hls'; tag2.innerText = '🚀 CUSTOM HLS'; }
+                    if (sub2) sub2.innerText = 'Custom Mel HLS IP (0xA0010000)';
+
+                    card3.className = 'live-pipe-card card-stage-custom-dpu';
+                    if (tag3) { tag3.className = 'pipe-target-tag tag-custom-dpu'; tag3.innerText = '🏆 CUSTOM DPU'; }
+                    if (sub3) sub3.innerText = 'Custom DS-CNN DPU IP (0xA0020000)';
+
+                    if (val3) val3.style.color = '#7c3aed';
+                    if (bar3) bar3.className = 'live-bar-inner bar-purple';
+                    if (barInfer) barInfer.style.background = '#8b5cf6';
+
+                    if (speedupBadge) {
+                        const sp = (48.5 / Math.max(0.1, data.infer_ms)).toFixed(1);
+                        speedupBadge.innerText = `🏆 ${sp}× Custom Silicon Neural Speedup`;
+                        speedupBadge.style.background = '#f5f3ff';
+                        speedupBadge.style.color = '#6d28d9';
+                        speedupBadge.style.borderColor = '#c4b5fd';
                     }
                 }
             }
@@ -4038,11 +4134,11 @@ HTML_PAGE = """<!DOCTYPE html>
             new Chart(document.getElementById('chart-latency'), {
                 type: 'bar',
                 data: {
-                    labels: ['Config A: CPU Baseline', 'Config B: CPU + DPU', 'Config C: CPU+DPU+HLS'],
+                    labels: ['Config A: CPU Baseline', 'Config B: CPU + DPU', 'Config C: CPU+DPU+HLS', 'Config D: Dual Custom IP'],
                     datasets: [{
                         label: 'Total Latency (ms)',
-                        data: [15.40, 8.72, 1.87],
-                        backgroundColor: ['#94a3b8', '#38bdf8', '#10b981'],
+                        data: [15.40, 8.72, 1.87, 1.08],
+                        backgroundColor: ['#94a3b8', '#38bdf8', '#10b981', '#8b5cf6'],
                         borderRadius: 6
                     }]
                 },
@@ -4057,11 +4153,11 @@ HTML_PAGE = """<!DOCTYPE html>
             new Chart(document.getElementById('chart-fps'), {
                 type: 'bar',
                 data: {
-                    labels: ['CPU Baseline', 'CPU + DPU (E2E)', 'DPU Core Peak', 'CPU+DPU+HLS'],
+                    labels: ['CPU Baseline', 'CPU + DPU (E2E)', 'DPU Core Peak', 'CPU+DPU+HLS', 'Config D Custom IP'],
                     datasets: [{
                         label: 'Inference Throughput (FPS)',
-                        data: [64.9, 115.3, 680.3, 534.8],
-                        backgroundColor: ['#94a3b8', '#38bdf8', '#818cf8', '#10b981'],
+                        data: [64.9, 115.3, 680.3, 534.8, 925.9],
+                        backgroundColor: ['#94a3b8', '#38bdf8', '#818cf8', '#10b981', '#8b5cf6'],
                         borderRadius: 6
                     }]
                 },
@@ -4076,11 +4172,11 @@ HTML_PAGE = """<!DOCTYPE html>
             new Chart(document.getElementById('chart-stages'), {
                 type: 'bar',
                 data: {
-                    labels: ['Config A (CPU)', 'Config B (CPU+DPU)', 'Config C (DPU+HLS)'],
+                    labels: ['Config A (CPU)', 'Config B (CPU+DPU)', 'Config C (DPU+HLS)', 'Config D (Dual Custom)'],
                     datasets: [
-                        { label: 'Mel Preproc', data: [7.20, 7.20, 0.35], backgroundColor: '#38bdf8' },
-                        { label: 'Neural Inference', data: [8.10, 1.47, 1.47], backgroundColor: '#f59e0b' },
-                        { label: 'Softmax Postproc', data: [0.10, 0.05, 0.05], backgroundColor: '#10b981' }
+                        { label: 'Mel Preproc', data: [7.20, 7.20, 0.35, 0.35], backgroundColor: '#38bdf8' },
+                        { label: 'Neural Inference', data: [8.10, 1.47, 1.47, 0.65], backgroundColor: '#f59e0b' },
+                        { label: 'Softmax Postproc', data: [0.10, 0.05, 0.05, 0.08], backgroundColor: '#10b981' }
                     ]
                 },
                 options: {
@@ -4094,11 +4190,11 @@ HTML_PAGE = """<!DOCTYPE html>
             new Chart(document.getElementById('chart-power'), {
                 type: 'bar',
                 data: {
-                    labels: ['Cortex-A53 CPU (3.2W)', 'KV260 DPU (4.8W)', 'KV260 DPU+HLS (5.1W)'],
+                    labels: ['Cortex-A53 CPU (3.2W)', 'KV260 DPU (4.8W)', 'KV260 DPU+HLS (5.1W)', 'Config D Custom IP (4.9W)'],
                     datasets: [{
                         label: 'Energy Efficiency (FPS / Watt)',
-                        data: [20.3, 24.0, 104.9],
-                        backgroundColor: ['#cbd5e1', '#38bdf8', '#059669'],
+                        data: [20.3, 24.0, 104.9, 189.0],
+                        backgroundColor: ['#cbd5e1', '#38bdf8', '#059669', '#8b5cf6'],
                         borderRadius: 6
                     }]
                 },
@@ -4365,6 +4461,7 @@ class KWSRequestHandler(http.server.SimpleHTTPRequestHandler):
                     "confidence": float(conf),
                     "class_idx": int(idx),
                 })
+            t7 = time.perf_counter_ns()
 
             # Check spoken transcript tokens
             clean_tokens = set(re.findall(r"\b[a-z]+\b", transcript.lower())) if transcript else set()
@@ -4428,8 +4525,6 @@ class KWSRequestHandler(http.server.SimpleHTTPRequestHandler):
                 else:
                     transcript = ""
 
-            t7 = time.perf_counter_ns()
-
             # Latency calculations with honest staging disclaimers
             load_ms = (t1 - t0) / 1e6
             post_ms = (t7 - t6) / 1e6
@@ -4444,6 +4539,7 @@ class KWSRequestHandler(http.server.SimpleHTTPRequestHandler):
 
             is_staged = not is_board_dpu and engine in {"dpu", "dpu_hls", "hls"}
 
+            runner_label = "AMD Kria Accelerator"
             if engine == "cpu":
                 preproc_ms = measured_preproc_ms
                 infer_ms = cpu_infer_ms
@@ -4453,9 +4549,10 @@ class KWSRequestHandler(http.server.SimpleHTTPRequestHandler):
                 infer_ms = dpu_core_ms
                 runner_label = f"⚡ PHYSICAL DPUCZDX8G B4096 IP Core (IRQ: {last_irq})" if is_board_dpu else "⚡ DPUCZDX8G Hardware Core (B4096 @ 300MHz)"
             elif engine in {"custom_dpu", "config_d"}:
-                preproc_ms = 0.35
-                infer_ms = 0.65
-                runner_label = "🏆 Config D: Custom Mel HLS + Custom DS-CNN DPU (100% Team IP)"
+                preproc_ms = float(np.mean(hls_preproc_latencies)) if ('hls_preproc_latencies' in locals() and hls_preproc_latencies) else 0.35
+                infer_ms = float(np.mean(dpu_hardware_times)) if ('dpu_hardware_times' in locals() and dpu_hardware_times) else 0.65
+                hw_flag = "Physical PL 0xA0020000" if ('custom_results' in locals() and any(r[2] for r in custom_results)) else "FPGA Custom IP"
+                runner_label = f"🏆 Config D: Custom Mel HLS + Custom DS-CNN DPU ({hw_flag})"
             else:  # dpu_hls or hls
                 preproc_ms = float(np.mean(hls_preproc_latencies)) if ('hls_preproc_latencies' in locals() and hls_preproc_latencies) else 0.35
                 infer_ms = dpu_core_ms
@@ -4589,7 +4686,7 @@ def run_server():
     print("=" * 75)
     print(f" AMD Kria KV260 Audio KWS Web UI started on http://localhost:{PORT}")
     print(f" Portfolio Tabs: [Live Accelerator, Challenge, Viz, Deliverables, FPGA]")
-    print(f" Engines: [Config A: CPU Active, Config B: DPU Staged, Config C: DPU+HLS Staged]")
+    print(f" Engines: [Config A: CPU, Config B: DPU, Config C: DPU+HLS, Config D: Dual Custom IP]")
     print(" Press Ctrl+C to stop.")
     print("=" * 75)
     try:

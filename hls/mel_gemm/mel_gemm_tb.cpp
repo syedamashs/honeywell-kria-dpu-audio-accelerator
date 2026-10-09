@@ -1,7 +1,6 @@
 #include <iostream>
 #include <cmath>
 #include "mel_gemm.h"
-
 // Reference software matrix multiplication for testbench verification
 void sw_mel_gemm_ref(
     float power_in[NUM_FRAMES][N_BINS],

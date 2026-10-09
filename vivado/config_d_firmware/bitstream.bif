@@ -1,0 +1,4 @@
+all:
+{
+    [destination_device = pl] audio_dp_hls_dual_custom.bit
+}

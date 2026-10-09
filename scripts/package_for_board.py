@@ -36,6 +36,7 @@ INCLUDED_ITEMS = [
     "scripts/run_on_board.sh",
     "requirements.txt",
     "README.md",
+    "hls/custom_dpu",
 ]
 
 

@@ -1,5 +1,4 @@
 #include "mel_gemm.h"
-
 // Filterbank weights stored in on-chip BRAM (40 x 257)
 // Generated from standard Slaney Auditory Toolbox formula
 extern const weight_t MEL_WEIGHTS_ROM[N_MELS][N_BINS];

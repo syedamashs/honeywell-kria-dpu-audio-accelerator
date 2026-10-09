@@ -28,6 +28,8 @@ vivado/*/synth_1/
 vivado/**/*.bit
 vivado/**/*.ltx
 hls/mel_gemm/solution*/
+hls/**/prj_*/
+hls/.vscode/
 *.cache/
 *.hw/
 *.ip_user_files/

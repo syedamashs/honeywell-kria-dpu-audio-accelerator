@@ -65,12 +65,31 @@ def probe_hardware_available() -> bool:
     Safe check: Only returns True if the dedicated HLS firmware is loaded in PL.
     Prevents AXI bus lockups when the DPU bitstream is loaded.
     """
+    # 1. Check active device-tree overlay symbol directly
+    try:
+        if os.path.exists("/sys/firmware/devicetree/base/__symbols__/mel_gemm_top_0") or \
+           os.path.exists("/sys/firmware/devicetree/base/__symbols__/mel_gemm_top_1"):
+            return True
+    except Exception:
+        pass
+
+    # 2. Check active app in xmutil listapps
+    try:
+        import subprocess
+        out = subprocess.getoutput("xmutil listapps 2>/dev/null")
+        for line in out.splitlines():
+            if ("config-c" in line or "config-d" in line) and ("0," in line or " 0 " in line or line.strip().endswith("0")):
+                return True
+    except Exception:
+        pass
+
+    # 3. Check fpga_manager firmware string
     try:
         fw_path = "/sys/class/fpga_manager/fpga0/firmware"
         if os.path.exists(fw_path):
             with open(fw_path, "r") as f:
                 fw = f.read().strip().lower()
-                if "config-c" in fw or "audio_dp" in fw:
+                if "config-c" in fw or "config-d" in fw or "audio_dp" in fw or "dual_custom" in fw:
                     return True
     except Exception:
         pass

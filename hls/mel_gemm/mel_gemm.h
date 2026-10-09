@@ -31,10 +31,11 @@ typedef ap_fixed<16, 6, AP_RND, AP_SAT> out_t;
 typedef ap_axis<16, 0, 0, 0> axis_pkt_t;
 
 // ── Top-level HLS Kernel Signature ───────────────────────────────────────────
+extern const weight_t MEL_WEIGHTS_ROM[N_MELS][N_BINS];
 void mel_gemm_top(
-    hls::stream<axis_pkt_t> &power_in,   // Input power spectrum stream: [N_BINS x T]
-    hls::stream<axis_pkt_t> &mel_out,    // Output mel stream: [N_MELS x T]
-    int num_frames                       // Number of time frames T (default: 98)
+    hls::stream<axis_pkt_t> &power_in,
+    hls::stream<axis_pkt_t> &mel_out,
+    int num_frames
 );
-
 #endif // MEL_GEMM_H_
+
