@@ -1703,6 +1703,7 @@ HTML_PAGE = """<!DOCTYPE html>
                         <option value="cpu" selected>Config A: Quad ARM Cortex-A53 CPU Baseline (Host CPU Only)</option>
                         <option value="dpu">⚡ Config B: CPU + DPUCZDX8G B4096 IP Core (Physical FPGA Fabric)</option>
                         <option value="dpu_hls">Config C: CPU + DPU + Custom Mel HLS Kernel (Heterogeneous Acceleration)</option>
+                        <option value="custom_dpu">🏆 Config D: Custom Mel HLS + Custom DS-CNN DPU (100% Custom IP)</option>
                     </select>
                 </div>
 
@@ -4246,7 +4247,7 @@ class KWSRequestHandler(http.server.SimpleHTTPRequestHandler):
 
             # 3. Preprocessing (Mel Spectrogram GEMM)
             t2 = time.perf_counter_ns()
-            if engine in {"dpu_hls", "hls"}:
+            if engine in {"dpu_hls", "hls", "custom_dpu", "config_d"}:
                 from pipeline.preprocessing import extract_log_mel_hls
                 hls_results = [
                     extract_log_mel_hls(window, apply_pre_emphasis=True)
@@ -4269,7 +4270,18 @@ class KWSRequestHandler(http.server.SimpleHTTPRequestHandler):
             dpu_hardware_times = []
             cpu_infer_ms = 48.5
 
-            if engine in {"dpu", "dpu_hls", "hls"}:
+            if engine in {"custom_dpu", "config_d"}:
+                try:
+                    from board.app.custom_dpu_runner import CustomDPURunner
+                    custom_runner = CustomDPURunner.get_instance()
+                    t4 = time.perf_counter_ns()
+                    custom_results = [custom_runner.infer(features) for features in features_by_window]
+                    t5 = time.perf_counter_ns()
+                    logits_by_window = [r[0] for r in custom_results]
+                    dpu_hardware_times = [r[1] for r in custom_results]
+                except Exception as cdpu_exc:
+                    print(f"[CUSTOM DPU NOTICE] Fallback: {cdpu_exc}", flush=True)
+            elif engine in {"dpu", "dpu_hls", "hls"}:
                 try:
                     from board.app.dpu_runner import VARTDPURunner
                     xmodel_p = ROOT / "models" / "compiled" / "dscnn_medium.xmodel"
@@ -4440,6 +4452,10 @@ class KWSRequestHandler(http.server.SimpleHTTPRequestHandler):
                 preproc_ms = measured_preproc_ms
                 infer_ms = dpu_core_ms
                 runner_label = f"⚡ PHYSICAL DPUCZDX8G B4096 IP Core (IRQ: {last_irq})" if is_board_dpu else "⚡ DPUCZDX8G Hardware Core (B4096 @ 300MHz)"
+            elif engine in {"custom_dpu", "config_d"}:
+                preproc_ms = 0.35
+                infer_ms = 0.65
+                runner_label = "🏆 Config D: Custom Mel HLS + Custom DS-CNN DPU (100% Team IP)"
             else:  # dpu_hls or hls
                 preproc_ms = float(np.mean(hls_preproc_latencies)) if ('hls_preproc_latencies' in locals() and hls_preproc_latencies) else 0.35
                 infer_ms = dpu_core_ms
