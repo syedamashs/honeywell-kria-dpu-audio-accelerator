@@ -1,0 +1,8 @@
+{
+    "lib": "libvart-dpu-runner.so",
+    "filename": "dscnn_medium.xmodel",
+    "kernel": [
+        "subgraph_RecoveredDSCNN__RecoveredDSCNN_AdaptiveAvgPool2d_gap__1159_fix"
+    ],
+    "target": "DPUCZDX8G_ISA1_B4096"
+}

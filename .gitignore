@@ -7,7 +7,10 @@ models/fp32/*.pth
 models/onnx/*.onnx
 !models/onnx/dscnn_medium.onnx
 models/quantized/
-models/compiled/
+models/compiled/*
+!models/compiled/dscnn_medium.xmodel
+!models/compiled/meta.json
+!models/compiled/md5sum.txt
 models/nndct_*/
 resnet50/
 
