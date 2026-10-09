@@ -4246,10 +4246,20 @@ class KWSRequestHandler(http.server.SimpleHTTPRequestHandler):
 
             # 3. Preprocessing (Mel Spectrogram GEMM)
             t2 = time.perf_counter_ns()
-            features_by_window = [
-                extract_log_mel(window, apply_pre_emphasis=True)
-                for window in windows
-            ]
+            if engine in {"dpu_hls", "hls"}:
+                from pipeline.preprocessing import extract_log_mel_hls
+                hls_results = [
+                    extract_log_mel_hls(window, apply_pre_emphasis=True)
+                    for window in windows
+                ]
+                features_by_window = [r[0] for r in hls_results]
+                hls_preproc_latencies = [r[1] for r in hls_results]
+                is_hls_hw = any(r[2] for r in hls_results)
+            else:
+                features_by_window = [
+                    extract_log_mel(window, apply_pre_emphasis=True)
+                    for window in windows
+                ]
             t3 = time.perf_counter_ns()
 
             # 4. Neural Inference
@@ -4431,9 +4441,10 @@ class KWSRequestHandler(http.server.SimpleHTTPRequestHandler):
                 infer_ms = dpu_core_ms
                 runner_label = f"⚡ PHYSICAL DPUCZDX8G B4096 IP Core (IRQ: {last_irq})" if is_board_dpu else "⚡ DPUCZDX8G Hardware Core (B4096 @ 300MHz)"
             else:  # dpu_hls or hls
-                preproc_ms = 0.35
+                preproc_ms = float(np.mean(hls_preproc_latencies)) if ('hls_preproc_latencies' in locals() and hls_preproc_latencies) else 0.35
                 infer_ms = dpu_core_ms
-                runner_label = f"🚀 DPU B4096 + Custom Mel GEMM HLS (IRQ: {last_irq})" if is_board_dpu else "🚀 DPU B4096 + Custom Mel GEMM HLS (AXI II=1)"
+                hw_flag = "Physical FPGA PL" if ('is_hls_hw' in locals() and is_hls_hw) else "AXI II=1"
+                runner_label = f"🚀 DPU B4096 + Custom Mel GEMM HLS ({hw_flag}, IRQ: {last_irq})" if is_board_dpu else f"🚀 DPU B4096 + Custom Mel GEMM HLS ({hw_flag})"
 
             payload = {
                 "keyword": primary_display,

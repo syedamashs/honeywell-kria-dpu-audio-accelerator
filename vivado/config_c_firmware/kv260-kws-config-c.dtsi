@@ -1,0 +1,46 @@
+/dts-v1/;
+/plugin/;
+
+/ {
+    fragment@0 {
+        target-path = "/fpga-full";
+        #address-cells = <2>;
+        #size-cells = <2>;
+        __overlay__ {
+            #address-cells = <2>;
+            #size-cells = <2>;
+            firmware-name = "kv260-kws-config-c.bit.bin";
+        };
+    };
+
+    fragment@1 {
+        target-path = "/amba_pl@0";
+        #address-cells = <2>;
+        #size-cells = <2>;
+        __overlay__ {
+            #address-cells = <2>;
+            #size-cells = <2>;
+
+            axi_dma_0: dma@a0000000 {
+                compatible = "xlnx,axi-dma-7.1", "xlnx,axi-dma-1.00.a";
+                reg = <0x0 0xa0000000 0x0 0x10000>;
+                #dma-cells = <1>;
+                xlnx,addrwidth = <0x20>;
+                xlnx,include-sg = <0x0>;
+                dma-channel@a0000000 {
+                    compatible = "xlnx,axi-dma-mm2s-channel";
+                    dma-channels = <1>;
+                };
+                dma-channel@a0000030 {
+                    compatible = "xlnx,axi-dma-s2mm-channel";
+                    dma-channels = <1>;
+                };
+            };
+
+            mel_gemm_top_0: mel_gemm@a0010000 {
+                compatible = "generic-uio";
+                reg = <0x0 0xa0010000 0x0 0x10000>;
+            };
+        };
+    };
+};

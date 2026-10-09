@@ -430,6 +430,32 @@ def extract_log_mel_from_file(path: str | Path, **kwargs) -> np.ndarray:
     return extract_log_mel(load_wav(path), **kwargs)
 
 
+def extract_log_mel_hls(
+    wav: np.ndarray,
+    apply_pre_emphasis: bool = True,
+    return_mfcc: bool = False,
+) -> Tuple[np.ndarray, float, bool]:
+    """
+    Config C Preprocessing: Offloads Mel Filterbank GEMM to Custom HLS IP Core.
+
+    Returns:
+        features: float32 array (40, 101)
+        hls_latency_ms: Execution time on FPGA PL
+        is_hw: Boolean flag indicating physical FPGA execution
+    """
+    from board.app.hls_mel_runner import HLSMelRunner
+    if apply_pre_emphasis:
+        wav = pre_emphasis(wav)
+    frames = frame_signal(wav)
+    power = power_spectrum(frames)
+    runner = HLSMelRunner.get_instance()
+    mel_spec, hls_latency_ms, is_hw = runner.infer_gemm(power)
+    log_mel = log_compression(mel_spec)
+    if return_mfcc:
+        return dct_mfcc(log_mel), hls_latency_ms, is_hw
+    return log_mel, hls_latency_ms, is_hw
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Librosa verification helper
 # ─────────────────────────────────────────────────────────────────────────────
