@@ -1,0 +1,4 @@
+all:
+{
+    [destination_device = pl] audio_dp_hls_wrapper_101_dma16.bit
+}

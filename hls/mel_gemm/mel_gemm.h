@@ -8,7 +8,7 @@
 // ── Audio Dimensions ─────────────────────────────────────────────────────────
 #define N_MELS      40      // Output Mel frequency bands
 #define N_BINS      257     // One-sided FFT bins (512-point FFT // 2 + 1)
-#define NUM_FRAMES  98      // Frames per 1-second 16kHz clip
+#define NUM_FRAMES  101     // Frames per 1-second 16kHz clip
 
 // Tiling factors for resource/latency tradeoff on KV260 PL
 #define TILE_M      8

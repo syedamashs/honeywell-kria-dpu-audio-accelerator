@@ -30,6 +30,7 @@ INCLUDED_ITEMS = [
     "benchmarks",
     "data/test_inputs",
     "models/onnx",
+    "models/compiled",
     "scripts/run_on_board.sh",
     "requirements.txt",
     "README.md",

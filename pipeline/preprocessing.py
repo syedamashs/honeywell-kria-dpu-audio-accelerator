@@ -25,9 +25,22 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 import numpy as np
-import scipy.fft as sp_fft
-import scipy.io.wavfile as wav_io
-import scipy.signal as sp_signal
+
+try:
+    import scipy.fft as sp_fft
+except ImportError:
+    sp_fft = None
+
+try:
+    import scipy.io.wavfile as wav_io
+except ImportError:
+    wav_io = None
+
+try:
+    import scipy.signal as sp_signal
+except ImportError:
+    sp_signal = None
+
 
 from pipeline.utils import (
     CLIP_DURATION,
@@ -57,6 +70,34 @@ PRE_EMPH  = 0.97                                   # pre-emphasis coefficient
 # 1. WAV loading
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _read_wav(source: str | Path | BytesIO) -> Tuple[int, np.ndarray]:
+    """Read WAV file or bytes using scipy if available, with stdlib wave fallback."""
+    if wav_io is not None:
+        try:
+            return wav_io.read(source)
+        except Exception:
+            pass
+
+    import wave
+    if hasattr(source, "read") or isinstance(source, BytesIO):
+        wf = wave.open(source, "rb")
+    else:
+        wf = wave.open(str(source), "rb")
+
+    with wf:
+        sr = wf.getframerate()
+        ch = wf.getnchannels()
+        width = wf.getsampwidth()
+        frames = wf.readframes(wf.getnframes())
+        dtype_map = {1: np.uint8, 2: np.int16, 4: np.int32}
+        if width not in dtype_map:
+            raise ValueError(f"Unsupported sample width: {width}")
+        data = np.frombuffer(frames, dtype=dtype_map[width])
+        if ch > 1:
+            data = data.reshape(-1, ch)
+        return sr, data
+
+
 def load_wav(path: str | Path) -> np.ndarray:
     """
     Load a WAV file and return a float32 mono array at SAMPLE_RATE.
@@ -64,7 +105,7 @@ def load_wav(path: str | Path) -> np.ndarray:
     Returns:
         wav: float32 array of shape (SAMPLE_RATE,) = (16000,)
     """
-    sr, data = wav_io.read(str(path))
+    sr, data = _read_wav(path)
     if sr != SAMPLE_RATE:
         raise ValueError(f"Expected {SAMPLE_RATE} Hz, got {sr} Hz: {path}")
     data = _audio_to_float32_mono(data)
@@ -84,7 +125,7 @@ def decode_wav_bytes(
 ) -> np.ndarray:
     """Decode WAV bytes to normalized 16 kHz mono audio, preserving duration."""
     try:
-        sample_rate, data = wav_io.read(BytesIO(contents))
+        sample_rate, data = _read_wav(BytesIO(contents))
     except Exception as exc:
         raise ValueError(f"Could not read {source_name} as a WAV file: {exc}") from exc
 
@@ -93,12 +134,19 @@ def decode_wav_bytes(
 
     audio = _audio_to_float32_mono(data)
     if sample_rate != SAMPLE_RATE:
-        divisor = gcd(sample_rate, SAMPLE_RATE)
-        audio = sp_signal.resample_poly(
-            audio,
-            up=SAMPLE_RATE // divisor,
-            down=sample_rate // divisor,
-        ).astype(np.float32)
+        if sp_signal is not None:
+            divisor = gcd(sample_rate, SAMPLE_RATE)
+            audio = sp_signal.resample_poly(
+                audio,
+                up=SAMPLE_RATE // divisor,
+                down=sample_rate // divisor,
+            ).astype(np.float32)
+        else:
+            orig_len = len(audio)
+            target_len = int(orig_len * SAMPLE_RATE / sample_rate)
+            x_old = np.linspace(0, 1, orig_len, endpoint=False)
+            x_new = np.linspace(0, 1, target_len, endpoint=False)
+            audio = np.interp(x_new, x_old, audio).astype(np.float32)
 
     if max_duration_s is not None:
         audio = audio[:int(SAMPLE_RATE * max_duration_s)]
@@ -174,7 +222,10 @@ def power_spectrum(frames: np.ndarray, n_fft: int = N_FFT) -> np.ndarray:
     Returns:
         power: (T, N_BINS) = (T, 257)  — float32
     """
-    spec = sp_fft.rfft(frames, n=n_fft, axis=-1)   # (T, N_BINS) complex
+    if sp_fft is not None:
+        spec = sp_fft.rfft(frames, n=n_fft, axis=-1)   # (T, N_BINS) complex
+    else:
+        spec = np.fft.rfft(frames, n=n_fft, axis=-1)
     power = (np.abs(spec) ** 2).astype(np.float32)  # (T, N_BINS) real
     return power
 
@@ -330,7 +381,16 @@ def dct_mfcc(log_mel: np.ndarray, n_mfcc: int = N_MFCC) -> np.ndarray:
     Returns:
         mfcc: (n_mfcc, T) float32
     """
-    mfcc_all = sp_fft.dct(log_mel, type=2, norm="ortho", axis=0)
+    if sp_fft is not None:
+        mfcc_all = sp_fft.dct(log_mel, type=2, norm="ortho", axis=0)
+    else:
+        N = log_mel.shape[0]
+        k = np.arange(n_mfcc)[:, np.newaxis]
+        n = np.arange(N)[np.newaxis, :]
+        dct_matrix = np.cos(np.pi * k * (2 * n + 1) / (2 * N))
+        dct_matrix[0] *= np.sqrt(1 / (4 * N))
+        dct_matrix[1:] *= np.sqrt(1 / (2 * N))
+        mfcc_all = 2.0 * (dct_matrix @ log_mel)
     return mfcc_all[:n_mfcc].astype(np.float32)
 
 

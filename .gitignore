@@ -8,17 +8,18 @@ models/onnx/*.onnx
 !models/onnx/dscnn_medium.onnx
 models/quantized/
 models/compiled/
+models/nndct_*/
+resnet50/
 
-# Presentation & PPT generated documentation (local only)
-MD-PPT/
-*.zip
+# Hardware bitstreams, XSA packages, and firmware (large binaries)
+*.bit
+*.bit.bin
+*.bin
+*.xsa
+*.dtbo
+audio_dp_hls_wrapper*/
 
-# Results (regenerate from notebook)
-results/raw/*.csv
-results/plots/
-results/profiler/
-
-# Vivado generated outputs
+# Vivado generated outputs & caches
 vivado/*/vivado.jou
 vivado/*/vivado.log
 vivado/*/.Xil/
@@ -27,6 +28,21 @@ vivado/*/synth_1/
 vivado/**/*.bit
 vivado/**/*.ltx
 hls/mel_gemm/solution*/
+*.cache/
+*.hw/
+*.ip_user_files/
+*.sim/
+*.jou
+*.log
+.Xil/
+
+# Presentation & PPT generated documentation (local only)
+MD-PPT/
+
+# Results (regenerate from notebook)
+results/raw/*.csv
+results/plots/
+results/profiler/
 
 # Python & Virtual Environments
 .venv/
@@ -36,6 +52,7 @@ ENV/
 __pycache__/
 *.pyc
 *.pyo
+*.whl
 .pytest_cache/
 *.egg-info/
 dist/
