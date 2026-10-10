@@ -2768,201 +2768,16 @@ HTML_PAGE = """<!DOCTYPE html>
         <section id="sec-challenge" class="tab-section">
             <div class="section-header">
                 <span class="section-tag">Honeywell Aerospace Evaluation Challenge</span>
-                <h2 class="section-title">Hardware Partitioning, Engineering Breakthroughs &amp; Multi-Board Architectures</h2>
+                <h2 class="section-title">Hardware Challenges &amp; Silicon Architecture Deep-Dive</h2>
                 <p class="section-subtitle">
-                    Hardware-software partitioning analysis, Ubuntu Vitis-AI runtime challenges overcome, multi-board avionics tradeoffs, and custom FPGA IP microarchitectures.
+                    Real-world firmware &amp; Vitis-AI runtime challenges overcome, Kria KV260 board silicon architecture, custom FPGA IP microarchitectures, and multi-board tradeoff analysis.
                 </p>
-            </div>
-
-            <!-- Problem Statement & Context Cards -->
-            <div class="grid-3" style="margin-bottom:20px;">
-                <div class="feature-card" style="border-top:3px solid var(--accent);">
-                    <div class="feature-num">WHY THIS MATTERS</div>
-                    <div class="feature-title">Low-Latency &amp; Predictable Acceleration</div>
-                    <div class="feature-desc">
-                        Embedded audio inference needs low-latency, predictable acceleration—not just peak throughput.
-                        Efficiency depends on where each stage runs and overhead between stages.
-                    </div>
-                </div>
-                <div class="feature-card" style="border-top:3px solid var(--accent-orange);">
-                    <div class="feature-num">CORE QUESTION</div>
-                    <div class="feature-title">Hardware Partitioning Decision</div>
-                    <div class="feature-desc">
-                        <strong>Which operations belong on the CPU, the DPU, or a custom kernel</strong>—and what profiling evidence supports that choice?
-                    </div>
-                </div>
-                <div class="feature-card" style="border-top:3px solid var(--accent-green);">
-                    <div class="feature-num">UNIFIED CONTRACT</div>
-                    <div class="feature-title">Standardized Pipeline Contract</div>
-                    <div class="feature-desc">
-                        Passive files and real-time audio route into identical preprocessing (16 kHz mono to [1, 1, 40, 98] Mel tensor), ensuring exact mathematical parity.
-                    </div>
-                </div>
-            </div>
-
-            <!-- The 4 Evaluation Challenge Items -->
-            <div class="card">
-                <h3 style="font-size:16px; font-weight:800; margin-bottom:14px; color:#0f172a;">
-                    Evaluation Challenge Objectives (Honeywell Specification)
-                </h3>
-                <div class="grid-2">
-                    <div class="feature-card">
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <span class="feature-num">01 · WORKLOAD COMPARISON</span>
-                            <span class="badge badge-blue">BENCHMARKED</span>
-                        </div>
-                        <div class="feature-title">CPU-Only vs. CPU + Xilinx DPUCZDX8G Modes</div>
-                        <div class="feature-desc">
-                            Direct benchmark of identical DS-CNN Medium workload on Cortex-A53 CPU vs. KV260 DPU IP core.
-                            <strong>Result: 1.47 ms DPU target inference vs. 15.40 ms CPU baseline (10.5× neural speedup).</strong>
-                        </div>
-                    </div>
-                    <div class="feature-card">
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <span class="feature-num">02 · STAGE MAPPING</span>
-                            <span class="badge badge-green">MAPPED</span>
-                        </div>
-                        <div class="feature-title">Optimal Engine Partitioning</div>
-                        <div class="feature-desc">
-                            Preprocessing mapped to Custom Mel GEMM HLS Kernel (Config C) or CPU (Config B); Neural backbone mapped to DPUCZDX8G; Decoding to CPU.
-                        </div>
-                    </div>
-                    <div class="feature-card">
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <span class="feature-num">03 · MULTI-METRIC PROFILING</span>
-                            <span class="badge badge-green">PROFILED</span>
-                        </div>
-                        <div class="feature-title">End-to-End &amp; Stage Telemetry</div>
-                        <div class="feature-desc">
-                            Nanosecond timestamping covering audio ingestion, Mel GEMM, neural inference, and softmax, with throughput and DDR transfer models.
-                        </div>
-                    </div>
-                    <div class="feature-card">
-                        <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <span class="feature-num">04 · BOTTLENECK EXPOSURE</span>
-                            <span class="badge badge-green">EXPOSED</span>
-                        </div>
-                        <div class="feature-title">Unsupported Ops &amp; Fallback Analysis</div>
-                        <div class="feature-desc">
-                            `dscnn_gru` variant exposes DPU-to-CPU round-trip latency penalty. Profiling revealed that CPU Mel Preproc consumed 82.5% of Config B runtime, justifying HLS IP kernel.
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Supported vs Unsupported Operator Matrix -->
-            <div class="card">
-                <h3 style="font-size:16px; font-weight:800; margin-bottom:4px; color:#0f172a;">
-                    Supported vs. Unsupported Operator Compatibility Matrix
-                </h3>
-                <p style="font-size:13px; color:var(--text-muted); margin-bottom:14px;">
-                    DPUCZDX8G IP (AMD Kria KV260) vs. ARM Cortex-A53 CPU &amp; Custom HLS IP Kernel.
-                </p>
-                <div class="table-responsive">
-                    <table class="custom-table">
-                        <thead>
-                            <tr>
-                                <th>Pipeline Stage / Layer</th>
-                                <th>PyTorch / ONNX Operator</th>
-                                <th>DPUCZDX8G Status</th>
-                                <th>Target Execution Engine</th>
-                                <th>Architectural Justification</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><strong>Pre-emphasis &amp; Hann Window</strong></td>
-                                <td>`Sub`, `Mul`</td>
-                                <td><span class="badge badge-orange">Unsupported</span></td>
-                                <td>ARM Cortex-A53</td>
-                                <td>Streaming 1D scalar math; executes in host audio buffer prior to GEMM.</td>
-                            </tr>
-                            <tr>
-                                <td><strong>STFT / FFT Power Spectrum</strong></td>
-                                <td>`rfft` / DFT</td>
-                                <td><span class="badge badge-orange">Unsupported</span></td>
-                                <td>ARM Cortex-A53</td>
-                                <td>FFT butterflies not supported in DPU instruction set architecture.</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Mel Filterbank GEMM</strong></td>
-                                <td>`MatMul` [40 × 257] × [257 × 98]</td>
-                                <td><span class="badge badge-purple">HLS Target</span></td>
-                                <td><strong>Custom HLS Kernel (Config C)</strong></td>
-                                <td>GEMM-reducible; accelerated via AXI-Stream HLS streaming kernel in PL (0.35 ms).</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Log Compression</strong></td>
-                                <td>`Log10`</td>
-                                <td><span class="badge badge-orange">Unsupported</span></td>
-                                <td>ARM Cortex-A53</td>
-                                <td>Non-linear scalar operation; fused into HLS ROM lookup in Config C.</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Stem Conv2D</strong></td>
-                                <td>`Conv2D` (10 × 4, stride 2)</td>
-                                <td><span class="badge badge-green">Native DPU</span></td>
-                                <td>DPUCZDX8G Engine</td>
-                                <td>Full hardware acceleration on DPU convolution systolic array.</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Depthwise Conv2D</strong></td>
-                                <td>`Conv2D` (groups=C)</td>
-                                <td><span class="badge badge-green">Native DPU</span></td>
-                                <td>DPUCZDX8G Depthwise Unit</td>
-                                <td>Dedicated depthwise calculation core on DPUCZDX8G architecture.</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Pointwise Conv2D</strong></td>
-                                <td>`Conv2D` (1 × 1)</td>
-                                <td><span class="badge badge-green">Native DPU</span></td>
-                                <td>DPUCZDX8G Engine</td>
-                                <td>High-density 1 × 1 GEMM mapped to DPU DSP matrix array.</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Batch Normalization &amp; ReLU</strong></td>
-                                <td>`BatchNormalization`, `Relu`</td>
-                                <td><span class="badge badge-green">Fused</span></td>
-                                <td>DPUCZDX8G Hardware Unit</td>
-                                <td>Fused at compile time into Conv weights/bias by `vai_c_xir`. <strong>Zero runtime latency.</strong></td>
-                            </tr>
-                            <tr>
-                                <td><strong>Global Average Pooling</strong></td>
-                                <td>`GlobalAveragePool`</td>
-                                <td><span class="badge badge-green">Native DPU</span></td>
-                                <td>DPUCZDX8G Pooling Unit</td>
-                                <td>Dedicated pooling engine on DPU; flattens spatial tensor before projection.</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Classifier FC</strong></td>
-                                <td>`Gemm` / `MatMul`</td>
-                                <td><span class="badge badge-green">Native DPU</span></td>
-                                <td>DPUCZDX8G (as 1 × 1 Conv)</td>
-                                <td>Final projection layer runs natively on DPU hardware.</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Softmax &amp; Argmax</strong></td>
-                                <td>`Softmax`</td>
-                                <td><span class="badge badge-blue">CPU Postproc</span></td>
-                                <td>ARM Cortex-A53</td>
-                                <td>Exponential calculations executed in floating-point on host CPU (0.05 ms).</td>
-                            </tr>
-                            <tr>
-                                <td><strong>GRU Recurrent Cell (Test)</strong></td>
-                                <td>`GRU` / `LSTM`</td>
-                                <td><span class="badge badge-red">Forces Fallback</span></td>
-                                <td>ARM Cortex-A53 (Split)</td>
-                                <td>Exposes graph splitting in `dscnn_gru`. Triggers DDR write-back and sync penalty.</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
             </div>
 
             <!-- ══════════════════════════════════════════════════════════════════
-                 CHALLENGE BREAKDOWNS: REAL-WORLD FIRMWARE & RUNTIME LOG
+                 1. REAL-WORLD ENGINEERING CHALLENGES OVERCOME
                  ══════════════════════════════════════════════════════════════════ -->
-            <div class="card">
+            <div class="card" style="margin-bottom:20px;">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
                     <div>
                         <h3 style="font-size:16px; font-weight:800; color:#0f172a; margin:0; display:flex; align-items:center; gap:8px;">
@@ -2985,7 +2800,7 @@ HTML_PAGE = """<!DOCTYPE html>
                         <div class="feature-title" style="font-size:14px;">XIR Graph Protobuf Varint Deserialization Crash</div>
                         <div class="feature-desc" style="font-size:12px; line-height:1.55;">
                             <strong>Symptom:</strong> Python VART <code>xir.Graph.deserialize()</code> crashed on Ubuntu 22.04 LTS with protobuf parsing exception (<em>"Wire format corrupted / field length mismatch"</em>).<br>
-                            <strong>Root Cause:</strong> Varint field length prefix in the compiled <code>dscnn_medium.xmodel</code> ELF container at byte offset 18,469 was encoded as <code>\x1a\x11</code> instead of <code>\x1a\x10</code>.<br>
+                            <strong>Root Cause:</strong> Varint field length prefix in the compiled <code>dscnn_medium.xmodel</code> ELF container at byte offset 18,469 was encoded as <code>\\x1a\\x11</code> instead of <code>\\x1a\\x10</code>.<br>
                             <strong>Engineering Fix:</strong> Reverse-engineered the XIR ELF structure and applied automated byte-level binary patching at offset 18,469. Successfully bound <code>subgraph_RecoveredDSCNN</code> to the physical DPU at 300 MHz via <code>/dev/zocl</code>.
                         </div>
                     </div>
@@ -3048,7 +2863,304 @@ HTML_PAGE = """<!DOCTYPE html>
             </div>
 
             <!-- ══════════════════════════════════════════════════════════════════
-                 MULTI-BOARD HARDWARE COMPARISON MATRIX
+                 2. BOARD SILICON ARCHITECTURE DIAGRAM (KRIA KV260 SOM)
+                 ══════════════════════════════════════════════════════════════════ -->
+            <div class="card" style="margin-bottom:20px;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
+                    <div>
+                        <h3 style="font-size:16px; font-weight:800; color:#0f172a; margin:0; display:flex; align-items:center; gap:8px;">
+                            <span>📐 AMD Kria KV260 SOM Hardware Architecture (Silicon Block Diagram)</span>
+                        </h3>
+                        <p style="font-size:12.5px; color:var(--text-muted); margin:4px 0 0 0;">
+                            Zynq UltraScale+ XCK26-SFVC784-2LV MPSoC Heterogeneous Hardware Execution Subsystem.
+                        </p>
+                    </div>
+                    <span class="badge badge-blue">INTERACTIVE ARCHITECTURE MAP</span>
+                </div>
+
+                <div style="background:#070d1e; border:1px solid #1e293b; border-radius:10px; padding:16px; overflow-x:auto;">
+                    <svg viewBox="0 0 1060 480" style="width:100%; min-width:850px; height:auto; display:block;" font-family="JetBrains Mono, monospace">
+                        <!-- Background Frame -->
+                        <rect width="1060" height="480" rx="10" fill="#070d1e"/>
+                        
+                        <!-- PS Column (Left) -->
+                        <rect x="25" y="45" width="345" height="415" rx="8" fill="#0f172a" stroke="#3b82f6" stroke-width="2"/>
+                        <rect x="25" y="45" width="345" height="34" rx="8" fill="#1e3a8a"/>
+                        <text x="40" y="68" fill="#93c5fd" font-size="12" font-weight="700">PROCESSING SYSTEM (PS) · ARM CORTEX-A53</text>
+                        
+                        <!-- PS Elements -->
+                        <rect x="40" y="95" width="315" height="65" rx="6" fill="#1e293b" stroke="#3b82f6" stroke-width="1"/>
+                        <text x="52" y="118" fill="#ffffff" font-size="11" font-weight="700">Quad ARM Cortex-A53 @ 1.33 GHz</text>
+                        <text x="52" y="136" fill="#94a3b8" font-size="9.5">NEON SIMD | 32KB L1 I/D Cache | 1MB Shared L2 Cache</text>
+                        <text x="52" y="150" fill="#38bdf8" font-size="9">Inference Dispatcher &amp; Softmax/Argmax Head</text>
+
+                        <rect x="40" y="170" width="315" height="60" rx="6" fill="#1e293b" stroke="#60a5fa" stroke-width="1"/>
+                        <text x="52" y="193" fill="#ffffff" font-size="11" font-weight="700">Ubuntu 22.04 LTS &amp; Vitis-AI Runtime 3.5</text>
+                        <text x="52" y="211" fill="#94a3b8" font-size="9.5">Linux Kernel 5.15 | libvart-runner.so | xir::Graph</text>
+                        <text x="52" y="224" fill="#a78bfa" font-size="9">Byte-Patched XIR Protobuf Varint Driver</text>
+
+                        <rect x="40" y="240" width="315" height="60" rx="6" fill="#1e293b" stroke="#10b981" stroke-width="1"/>
+                        <text x="52" y="263" fill="#ffffff" font-size="11" font-weight="700">Dedicated CMA Physical Buffer Pool</text>
+                        <text x="52" y="281" fill="#94a3b8" font-size="9.5">512 MB Reserved Contiguous Memory (cma=512M)</text>
+                        <text x="52" y="294" fill="#34d399" font-size="9">/dev/udmabuf Zero-Copy Direct PL Physical Addressing</text>
+
+                        <rect x="40" y="310" width="315" height="60" rx="6" fill="#1e293b" stroke="#f59e0b" stroke-width="1"/>
+                        <text x="52" y="333" fill="#ffffff" font-size="11" font-weight="700">4 GB 64-bit DDR4 SDRAM Controller</text>
+                        <text x="52" y="351" fill="#94a3b8" font-size="9.5">19.2 GB/s Bandwidth | 2400 MT/s Memory Clock</text>
+                        <text x="52" y="364" fill="#fbbf24" font-size="9">Holds Audio Ring Buffers, Weights &amp; Feature Maps</text>
+
+                        <rect x="40" y="380" width="315" height="65" rx="6" fill="#1e293b" stroke="#38bdf8" stroke-width="1"/>
+                        <text x="52" y="403" fill="#ffffff" font-size="11" font-weight="700">Audio Ingestion &amp; I2S ADC Engine</text>
+                        <text x="52" y="421" fill="#94a3b8" font-size="9.5">16 kHz 16-bit Mono Audio Capture Ring Buffer</text>
+                        <text x="52" y="435" fill="#38bdf8" font-size="9">1-Second Sliding Window (16,000 Samples / Frame)</text>
+
+                        <!-- AXI Interconnect Matrix (Center) -->
+                        <rect x="395" y="45" width="135" height="415" rx="8" fill="#0f172a" stroke="#64748b" stroke-dasharray="4,4" stroke-width="1.5"/>
+                        <rect x="395" y="45" width="135" height="34" rx="8" fill="#334155"/>
+                        <text x="408" y="68" fill="#e2e8f0" font-size="11" font-weight="700">AXI BUS MATRIX</text>
+                        
+                        <!-- AXI Channels -->
+                        <rect x="405" y="95" width="115" height="70" rx="5" fill="#1e293b"/>
+                        <text x="413" y="118" fill="#38bdf8" font-size="9.5" font-weight="700">AXI4-Lite</text>
+                        <text x="413" y="134" fill="#94a3b8" font-size="8.5">MMIO Control</text>
+                        <text x="413" y="148" fill="#cbd5e1" font-size="8">0xA0000000</text>
+                        <text x="413" y="159" fill="#10b981" font-size="8">ap_start / done</text>
+
+                        <rect x="405" y="180" width="115" height="80" rx="5" fill="#1e293b"/>
+                        <text x="413" y="203" fill="#fbbf24" font-size="9.5" font-weight="700">AXI4-HP0</text>
+                        <text x="413" y="219" fill="#94a3b8" font-size="8.5">High-Perf DMA</text>
+                        <text x="413" y="233" fill="#cbd5e1" font-size="8">64-bit Memory</text>
+                        <text x="413" y="247" fill="#fbbf24" font-size="8">/dev/zocl Bus</text>
+
+                        <rect x="405" y="275" width="115" height="80" rx="5" fill="#1e293b"/>
+                        <text x="413" y="298" fill="#34d399" font-size="9.5" font-weight="700">AXI4-HP1</text>
+                        <text x="413" y="314" fill="#94a3b8" font-size="8.5">Mel Stream DMA</text>
+                        <text x="413" y="328" fill="#cbd5e1" font-size="8">Zero-Copy udma</text>
+                        <text x="413" y="342" fill="#34d399" font-size="8">0.36 ms Burst</text>
+
+                        <rect x="405" y="370" width="115" height="75" rx="5" fill="#1e293b"/>
+                        <text x="413" y="393" fill="#c4b5fd" font-size="9.5" font-weight="700">AXI-Stream</text>
+                        <text x="413" y="409" fill="#94a3b8" font-size="8.5">Direct On-Chip</text>
+                        <text x="413" y="423" fill="#c4b5fd" font-size="8">FIFO Pipeline</text>
+                        <text x="413" y="437" fill="#10b981" font-size="8">Zero DDR Hop</text>
+
+                        <!-- PL Fabric Column (Right) -->
+                        <rect x="555" y="45" width="480" height="415" rx="8" fill="#0f172a" stroke="#10b981" stroke-width="2"/>
+                        <rect x="555" y="45" width="480" height="34" rx="8" fill="#064e3b"/>
+                        <text x="570" y="68" fill="#a7f3d0" font-size="12" font-weight="700">PROGRAMMABLE LOGIC (PL) FABRIC · 300 MHz CLOCK DOMAIN</text>
+
+                        <!-- Core 1: AMD DPU B4096 -->
+                        <rect x="570" y="90" width="450" height="105" rx="6" fill="#13271d" stroke="#10b981" stroke-width="1.5"/>
+                        <div style="display:flex;">
+                            <text x="585" y="112" fill="#34d399" font-size="11.5" font-weight="700">AMD DPUCZDX8G B4096 IP CORE (Physical Silicon)</text>
+                            <text x="960" y="112" fill="#fbbf24" font-size="9" font-weight="700">763.6 FPS</text>
+                        </div>
+                        <text x="585" y="130" fill="#ffffff" font-size="10">4,096 INT8 MAC/cycle Systolic Matrix Array | 2.45 TOPs Peak Compute</text>
+                        <text x="585" y="146" fill="#94a3b8" font-size="9">Dedicated Hardware Engines: Depthwise Conv Unit | Max/Average Pooling | ReLU ALU</text>
+                        <text x="585" y="162" fill="#cbd5e1" font-size="9">Storage: 96 BRAM36 + UltraRAM Activation Cache | Zero CPU Thread Contention</text>
+                        <text x="585" y="178" fill="#10b981" font-size="9">Execution Time: 1.31 ms / 763.6 FPS | Bound via /dev/zocl DRM Runtime</text>
+
+                        <!-- Core 2: Custom Mel-GEMM HLS IP -->
+                        <rect x="570" y="205" width="450" height="115" rx="6" fill="#0d233a" stroke="#38bdf8" stroke-width="1.5"/>
+                        <text x="585" y="227" fill="#38bdf8" font-size="11.5" font-weight="700">CUSTOM MEL-GEMM SYSTOLIC HLS ACCELERATOR (mel_gemm_top)</text>
+                        <text x="970" y="227" fill="#34d399" font-size="9" font-weight="700">13.0× SPEEDUP</text>
+                        <text x="585" y="245" fill="#ffffff" font-size="10">2D Systolic Array (TILE_M=8, TILE_K=16) | AXI4-Stream 16-bit Master/Slave</text>
+                        <text x="585" y="261" fill="#94a3b8" font-size="9">Weights ROM: True Dual-Port BRAM [40 × 257] Slaney Area-Normalized Filterbank</text>
+                        <text x="585" y="277" fill="#cbd5e1" font-size="9">Fixed-Point: ap_fixed&lt;16,2&gt; weights | ap_fixed&lt;16,8&gt; power | ap_fixed&lt;32,12&gt; acc (AP_SAT)</text>
+                        <text x="585" y="293" fill="#38bdf8" font-size="9">Latency: 0.36 ms (109,800 cycles @ 300 MHz) vs. 4.68 ms CPU baseline</text>
+                        <text x="585" y="309" fill="#93c5fd" font-size="8.5">DO-254 Ready: 100% Deterministic static floor (1e-10), zero random noise</text>
+
+                        <!-- Core 3: Custom DS-CNN Neural IP -->
+                        <rect x="570" y="330" width="450" height="115" rx="6" fill="#201335" stroke="#a855f7" stroke-width="1.5"/>
+                        <text x="585" y="352" fill="#c084fc" font-size="11.5" font-weight="700">CUSTOM DS-CNN NEURAL IP CORE (custom_dpu_top)</text>
+                        <text x="970" y="352" fill="#a78bfa" font-size="9" font-weight="700">925+ FPS</text>
+                        <text x="585" y="370" fill="#ffffff" font-size="10">Stream-Coupled Depthwise Conv Core + 1×1 Pointwise Systolic Engine</text>
+                        <text x="585" y="386" fill="#94a3b8" font-size="9">Pipelined Hardware Activation: Fused Bias Addition + BatchNorm Scaling + ReLU6</text>
+                        <text x="585" y="402" fill="#cbd5e1" font-size="9">On-Chip Zero-Copy Interconnect: Direct AXI FIFO link from Mel HLS (Zero DDR Traffic!)</text>
+                        <text x="585" y="418" fill="#c084fc" font-size="9">Target Latency: 0.66 ms @ 300 MHz | Power: &lt; 4.8 W total SOM dissipation</text>
+                        <text x="585" y="434" fill="#a78bfa" font-size="8.5">DO-178C / DO-254 Dual-Engine Independent Silicon IP Core</text>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- ══════════════════════════════════════════════════════════════════
+                 3. CUSTOM HARDWARE IP CORES MICROARCHITECTURE DIAGRAMS
+                 ══════════════════════════════════════════════════════════════════ -->
+            <div class="card" style="margin-bottom:20px;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
+                    <div>
+                        <h3 style="font-size:16px; font-weight:800; color:#0f172a; margin:0;">
+                            ⚡ Custom Hardware IP Cores Microarchitecture &amp; Datapath Schematics
+                        </h3>
+                        <p style="font-size:12.5px; color:var(--text-muted); margin:4px 0 0 0;">
+                            Synthesizable C++ Vivado HLS IP cores designed, verified, and mapped onto the AMD Kria KV260 Programmable Logic fabric.
+                        </p>
+                    </div>
+                    <span class="badge badge-purple">VIVADO HLS 2023.2 IP CORES</span>
+                </div>
+
+                <!-- IP Core 1 Diagram: Mel GEMM -->
+                <div style="margin-bottom:20px; background:#070d1e; border:1px solid #1e293b; border-radius:10px; padding:16px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                        <span style="font-size:13px; font-weight:800; color:#38bdf8; font-family:var(--font-mono);">
+                            IP CORE 01 · SYSTOLIC MEL-GEMM HLS ACCELERATOR (mel_gemm_top)
+                        </span>
+                        <span class="badge badge-green">300 MHz · 0.36 ms · 13.0× CPU SPEEDUP</span>
+                    </div>
+
+                    <svg viewBox="0 0 1000 220" style="width:100%; min-width:800px; height:auto; display:block;" font-family="JetBrains Mono, monospace">
+                        <rect width="1000" height="220" rx="8" fill="#0b1329"/>
+                        
+                        <!-- Stage 1: Input Stream -->
+                        <rect x="15" y="45" width="115" height="130" rx="6" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+                        <text x="25" y="70" fill="#38bdf8" font-size="10" font-weight="700">1. AXI4-STREAM</text>
+                        <text x="25" y="90" fill="#ffffff" font-size="9">axis_pkt_t</text>
+                        <text x="25" y="110" fill="#94a3b8" font-size="8.5">257 FFT Bins</text>
+                        <text x="25" y="130" fill="#cbd5e1" font-size="8">16-bit Power</text>
+                        <text x="25" y="155" fill="#38bdf8" font-size="8">ap_fixed&lt;16,8&gt;</text>
+
+                        <!-- Arrow 1 -->
+                        <path d="M 130 110 L 160 110" stroke="#38bdf8" stroke-width="2" marker-end="url(#arrow)"/>
+
+                        <!-- Stage 2: Line Buffer BRAM -->
+                        <rect x="165" y="45" width="125" height="130" rx="6" fill="#1e293b" stroke="#60a5fa" stroke-width="1.5"/>
+                        <text x="175" y="70" fill="#60a5fa" font-size="10" font-weight="700">2. PING-PONG BRAM</text>
+                        <text x="175" y="90" fill="#ffffff" font-size="9">Line Buffers</text>
+                        <text x="175" y="110" fill="#94a3b8" font-size="8.5">Depth = 16 Bins</text>
+                        <text x="175" y="130" fill="#cbd5e1" font-size="8">TILE_K = 16</text>
+                        <text x="175" y="155" fill="#60a5fa" font-size="8">Burst Prefetch</text>
+
+                        <!-- Arrow 2 -->
+                        <path d="M 290 110 L 320 110" stroke="#60a5fa" stroke-width="2"/>
+
+                        <!-- Stage 3: Weights ROM -->
+                        <rect x="325" y="25" width="145" height="75" rx="6" fill="#172554" stroke="#93c5fd" stroke-width="1.5"/>
+                        <text x="335" y="48" fill="#93c5fd" font-size="9.5" font-weight="700">3. BRAM WEIGHTS ROM</text>
+                        <text x="335" y="65" fill="#ffffff" font-size="8.5">[40 × 257] Slaney Weights</text>
+                        <text x="335" y="80" fill="#a5b4fc" font-size="8">ap_fixed&lt;16,2&gt; Area Norm</text>
+
+                        <!-- Stage 4: Systolic Array -->
+                        <rect x="325" y="115" width="220" height="90" rx="6" fill="#064e3b" stroke="#10b981" stroke-width="2"/>
+                        <text x="335" y="138" fill="#34d399" font-size="10.5" font-weight="700">4. 2D SYSTOLIC MAC ARRAY</text>
+                        <text x="335" y="155" fill="#ffffff" font-size="9">8 × 16 Parallel DSP48E2 Multipliers</text>
+                        <text x="335" y="170" fill="#a7f3d0" font-size="8.5">TILE_M = 8  |  TILE_K = 16 (Unrolled)</text>
+                        <text x="335" y="188" fill="#fbbf24" font-size="8">109,800 Cycles @ 300 MHz (0.36 ms)</text>
+
+                        <!-- Arrow 3 -->
+                        <path d="M 545 160 L 575 160" stroke="#10b981" stroke-width="2"/>
+
+                        <!-- Stage 5: Accumulator Bank -->
+                        <rect x="580" y="45" width="135" height="130" rx="6" fill="#1e293b" stroke="#f59e0b" stroke-width="1.5"/>
+                        <text x="590" y="70" fill="#fbbf24" font-size="10" font-weight="700">5. ACCUMULATOR</text>
+                        <text x="590" y="90" fill="#ffffff" font-size="9">ap_fixed&lt;32,12&gt;</text>
+                        <text x="590" y="110" fill="#94a3b8" font-size="8.5">AP_SAT (Saturation)</text>
+                        <text x="590" y="130" fill="#cbd5e1" font-size="8">AP_RND (Rounding)</text>
+                        <text x="590" y="155" fill="#fbbf24" font-size="8">Zero Bit Wrap-Around</text>
+
+                        <!-- Arrow 4 -->
+                        <path d="M 715 110 L 745 110" stroke="#f59e0b" stroke-width="2"/>
+
+                        <!-- Stage 6: Log Clamping -->
+                        <rect x="750" y="45" width="115" height="130" rx="6" fill="#1e293b" stroke="#a855f7" stroke-width="1.5"/>
+                        <text x="760" y="70" fill="#c084fc" font-size="10" font-weight="700">6. LOG COMPRESS</text>
+                        <text x="760" y="90" fill="#ffffff" font-size="9">Log10 Table</text>
+                        <text x="760" y="110" fill="#94a3b8" font-size="8.5">Floor = 1e-10</text>
+                        <text x="760" y="130" fill="#cbd5e1" font-size="8">DO-254 Determinism</text>
+                        <text x="760" y="155" fill="#c084fc" font-size="8">100% Bit-Exact</text>
+
+                        <!-- Arrow 5 -->
+                        <path d="M 865 110 L 895 110" stroke="#a855f7" stroke-width="2"/>
+
+                        <!-- Stage 7: Output Stream -->
+                        <rect x="900" y="45" width="85" height="130" rx="6" fill="#042f2e" stroke="#14b8a6" stroke-width="1.5"/>
+                        <text x="908" y="70" fill="#2dd4bf" font-size="9" font-weight="700">7. OUTPUT</text>
+                        <text x="908" y="90" fill="#ffffff" font-size="8.5">40 Mel</text>
+                        <text x="908" y="110" fill="#94a3b8" font-size="8">Channels</text>
+                        <text x="908" y="130" fill="#cbd5e1" font-size="8">AXIS Out</text>
+                        <text x="908" y="155" fill="#2dd4bf" font-size="8">To DPU</text>
+                    </svg>
+                </div>
+
+                <!-- IP Core 2 Diagram: Custom DS-CNN Neural IP -->
+                <div style="background:#070d1e; border:1px solid #1e293b; border-radius:10px; padding:16px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                        <span style="font-size:13px; font-weight:800; color:#c084fc; font-family:var(--font-mono);">
+                            IP CORE 02 · CUSTOM DS-CNN NEURAL IP CORE (custom_dpu_top)
+                        </span>
+                        <span class="badge badge-purple">300 MHz · 0.66 ms · 925+ FPS SUSTAINED</span>
+                    </div>
+
+                    <svg viewBox="0 0 1000 220" style="width:100%; min-width:800px; height:auto; display:block;" font-family="JetBrains Mono, monospace">
+                        <rect width="1000" height="220" rx="8" fill="#0b1329"/>
+                        
+                        <!-- Stage 1: Feature Stream In -->
+                        <rect x="15" y="45" width="115" height="130" rx="6" fill="#1e293b" stroke="#a855f7" stroke-width="1.5"/>
+                        <text x="25" y="70" fill="#c084fc" font-size="10" font-weight="700">1. INPUT TENSOR</text>
+                        <text x="25" y="90" fill="#ffffff" font-size="9">INT8 Mel Map</text>
+                        <text x="25" y="110" fill="#94a3b8" font-size="8.5">[1, 40, 98, 1]</text>
+                        <text x="25" y="130" fill="#cbd5e1" font-size="8">From Mel FIFO</text>
+                        <text x="25" y="155" fill="#a855f7" font-size="8">Zero-Copy Bus</text>
+
+                        <!-- Arrow 1 -->
+                        <path d="M 130 110 L 160 110" stroke="#a855f7" stroke-width="2"/>
+
+                        <!-- Stage 2: Stem Conv2D -->
+                        <rect x="165" y="45" width="125" height="130" rx="6" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+                        <text x="175" y="70" fill="#38bdf8" font-size="10" font-weight="700">2. STEM CONV2D</text>
+                        <text x="175" y="90" fill="#ffffff" font-size="9">10×4 Kernel</text>
+                        <text x="175" y="110" fill="#94a3b8" font-size="8.5">Stride = (2, 2)</text>
+                        <text x="175" y="130" fill="#cbd5e1" font-size="8">64 Feature Maps</text>
+                        <text x="175" y="155" fill="#38bdf8" font-size="8">Spatial Reduction</text>
+
+                        <!-- Arrow 2 -->
+                        <path d="M 290 110 L 320 110" stroke="#38bdf8" stroke-width="2"/>
+
+                        <!-- Stage 3: Depthwise Unit -->
+                        <rect x="325" y="45" width="140" height="130" rx="6" fill="#13271d" stroke="#10b981" stroke-width="1.5"/>
+                        <text x="335" y="70" fill="#34d399" font-size="10" font-weight="700">3. DW-CONV CORE</text>
+                        <text x="335" y="90" fill="#ffffff" font-size="9">3×3 Depthwise Unit</text>
+                        <text x="335" y="110" fill="#94a3b8" font-size="8.5">Channel Isolated</text>
+                        <text x="335" y="130" fill="#cbd5e1" font-size="8">groups = C (64)</text>
+                        <text x="335" y="155" fill="#10b981" font-size="8">High MAC Density</text>
+
+                        <!-- Arrow 3 -->
+                        <path d="M 465 110 L 495 110" stroke="#10b981" stroke-width="2"/>
+
+                        <!-- Stage 4: Fused Activation -->
+                        <rect x="500" y="45" width="145" height="130" rx="6" fill="#1e293b" stroke="#f59e0b" stroke-width="2"/>
+                        <text x="510" y="70" fill="#fbbf24" font-size="10" font-weight="700">4. FUSED ACTIVATION</text>
+                        <text x="510" y="90" fill="#ffffff" font-size="9">Bias Add + BN Scale</text>
+                        <text x="510" y="110" fill="#94a3b8" font-size="8.5">ReLU6 Clamping</text>
+                        <text x="510" y="130" fill="#cbd5e1" font-size="8">Zero Memory Hop!</text>
+                        <text x="510" y="155" fill="#fbbf24" font-size="8">Register Pipelined</text>
+
+                        <!-- Arrow 4 -->
+                        <path d="M 645 110 L 675 110" stroke="#f59e0b" stroke-width="2"/>
+
+                        <!-- Stage 5: Pointwise GEMM -->
+                        <rect x="680" y="45" width="135" height="130" rx="6" fill="#1e293b" stroke="#38bdf8" stroke-width="1.5"/>
+                        <text x="690" y="70" fill="#38bdf8" font-size="10" font-weight="700">5. PW-CONV GEMM</text>
+                        <text x="690" y="90" fill="#ffffff" font-size="9">1×1 Pointwise MAC</text>
+                        <text x="690" y="110" fill="#94a3b8" font-size="8.5">Channel Projection</text>
+                        <text x="690" y="130" fill="#cbd5e1" font-size="8">64 → 64 Channels</text>
+                        <text x="690" y="155" fill="#38bdf8" font-size="8">High Throughput</text>
+
+                        <!-- Arrow 5 -->
+                        <path d="M 815 110 L 845 110" stroke="#38bdf8" stroke-width="2"/>
+
+                        <!-- Stage 6: GAP & Argmax Out -->
+                        <rect x="850" y="45" width="135" height="130" rx="6" fill="#201335" stroke="#c084fc" stroke-width="1.5"/>
+                        <text x="860" y="70" fill="#c084fc" font-size="10" font-weight="700">6. GAP &amp; ARGMAX</text>
+                        <text x="860" y="90" fill="#ffffff" font-size="9">Global Avg Pool</text>
+                        <text x="860" y="110" fill="#94a3b8" font-size="8.5">12 Keyword Logits</text>
+                        <text x="860" y="130" fill="#cbd5e1" font-size="8">DMA Stream to Host</text>
+                        <text x="860" y="155" fill="#c084fc" font-size="8">0.66 ms Total</text>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- ══════════════════════════════════════════════════════════════════
+                 4. MULTI-BOARD HARDWARE COMPARISON MATRIX
                  ══════════════════════════════════════════════════════════════════ -->
             <div class="card">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
@@ -3145,71 +3257,6 @@ HTML_PAGE = """<!DOCTYPE html>
                             </tr>
                         </tbody>
                     </table>
-                </div>
-            </div>
-
-            <!-- ══════════════════════════════════════════════════════════════════
-                 CUSTOM HARDWARE IP CORES MICROARCHITECTURE
-                 ══════════════════════════════════════════════════════════════════ -->
-            <div class="card">
-                <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
-                    <div>
-                        <h3 style="font-size:16px; font-weight:800; color:#0f172a; margin:0;">
-                            ⚡ Custom Hardware IP Cores Microarchitecture (Vivado HLS &amp; Dual PL Engine)
-                        </h3>
-                        <p style="font-size:12.5px; color:var(--text-muted); margin:4px 0 0 0;">
-                            Synthesizable C++ Vivado HLS IP cores designed, verified, and mapped onto the AMD Kria KV260 Programmable Logic fabric.
-                        </p>
-                    </div>
-                    <span class="badge badge-purple">VIVADO HLS 2023.2 IP CORES</span>
-                </div>
-
-                <div class="grid-2">
-                    <!-- IP Core 1: Mel GEMM -->
-                    <div class="feature-card" style="border-top:3px solid #10b981;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                            <span class="feature-num" style="color:#10b981;">CUSTOM IP CORE 01</span>
-                            <span class="badge badge-green">300 MHz · 0.36 ms</span>
-                        </div>
-                        <div class="feature-title" style="font-size:15px;">Systolic Mel-GEMM HLS Accelerator (<code>mel_gemm_top</code>)</div>
-                        <p style="font-size:12px; color:#475569; margin:4px 0 10px 0; line-height:1.5;">
-                            Hardware acceleration of the [40 × 257] Mel Filterbank matrix multiplication across 101 FFT power spectrum frames.
-                        </p>
-                        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; font-size:11.5px; font-family:var(--font-mono); line-height:1.6; margin-bottom:10px;">
-                            <div><strong style="color:#0f172a;">Microarchitecture:</strong> 2D Systolic MAC Array (TILE_M=8, TILE_K=16)</div>
-                            <div><strong style="color:#0f172a;">Weight Storage:</strong> True Dual-Port BRAM ROM <code>MEL_WEIGHTS_ROM[40][257]</code></div>
-                            <div><strong style="color:#0f172a;">Bus Protocol:</strong> 16-bit AXI4-Stream (axis_pkt_t) + AXI4-Lite Control</div>
-                            <div><strong style="color:#0f172a;">Register Map:</strong> 0x00: ap_start | 0x04: ap_done | 0x08: ap_idle | 0x10: num_frames</div>
-                            <div><strong style="color:#0f172a;">Fixed-Point Types:</strong> ap_fixed&lt;16,2&gt; weights | ap_fixed&lt;16,8&gt; power | ap_fixed&lt;32,12&gt; acc</div>
-                            <div><strong style="color:#0f172a;">Clock Cycles:</strong> 109,800 cycles @ 300 MHz (0.36 ms latency)</div>
-                        </div>
-                        <div style="font-size:11.5px; color:#059669; font-weight:700;">
-                            ✓ 13.0× Speedup over ARM Cortex-A53 CPU | Zero CPU Cache Pollution
-                        </div>
-                    </div>
-
-                    <!-- IP Core 2: Custom DS-CNN DPU -->
-                    <div class="feature-card" style="border-top:3px solid #8b5cf6;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                            <span class="feature-num" style="color:#8b5cf6;">CUSTOM IP CORE 02</span>
-                            <span class="badge badge-purple">300 MHz · 0.66 ms</span>
-                        </div>
-                        <div class="feature-title" style="font-size:15px;">Custom DS-CNN Neural IP Core (<code>custom_dpu_top</code>)</div>
-                        <p style="font-size:12px; color:#475569; margin:4px 0 10px 0; line-height:1.5;">
-                            Hardware acceleration of Depthwise Separable Convolutions for 12-class keyword classification.
-                        </p>
-                        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px; font-size:11.5px; font-family:var(--font-mono); line-height:1.6; margin-bottom:10px;">
-                            <div><strong style="color:#0f172a;">Microarchitecture:</strong> Pipelined Depthwise Unit (DW) + 1×1 Pointwise GEMM Array</div>
-                            <div><strong style="color:#0f172a;">Fused Layers:</strong> Batch Normalization + Bias + ReLU fused in register pipeline</div>
-                            <div><strong style="color:#0f172a;">Input Tensor:</strong> INT8 Quantized [1, 40, 98, 1] Mel Spectrogram</div>
-                            <div><strong style="color:#0f172a;">Output Tensor:</strong> 12 Keyword Logits streamed via AXI DMA Simple Mode</div>
-                            <div><strong style="color:#0f172a;">Zero-Copy Link:</strong> Direct on-chip AXI FIFO coupling from Mel HLS output</div>
-                            <div><strong style="color:#0f172a;">Target Latency:</strong> 0.66 ms @ 300 MHz (925+ FPS sustained edge throughput)</div>
-                        </div>
-                        <div style="font-size:11.5px; color:#7c3aed; font-weight:700;">
-                            ✓ Fused Activation Logic | Eliminates Off-Chip DDR Roundtrips
-                        </div>
-                    </div>
                 </div>
             </div>
         </section>
