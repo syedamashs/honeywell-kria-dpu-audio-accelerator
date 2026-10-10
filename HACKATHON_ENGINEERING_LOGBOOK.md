@@ -344,6 +344,143 @@ Staged, committed, and pushed the 30.08 MB deployment bundle directly to GitHub.
 
 ---
 
+### 🐞 Case Study 7: Device Tree Overlay Refcount Warning on `xmutil unloadapp`
+
+#### Symptom & Kernel Log
+When unloading an FPGA accelerator overlay using `sudo xmutil unloadapp`, the Linux kernel emitted a dmesg error:
+```text
+ubuntu@kria:~/deploy_kria_kv260$ sudo xmutil unloadapp
+[  306.581424] OF: ERROR: memory leak, expected refcount 1 instead of 2, of_node_get()/of_node_put() unbalanced - destroy cset entry: att
+```
+In some instances, subsequent `xmutil loadapp` attempts reported:
+```text
+ERROR: Slot 0 busy. Failed to unload active overlay.
+```
+
+#### Root Cause Analysis
+1. **Open Firmware (OF) Changeset Mechanics**: The Linux kernel manages dynamic FPGA overlays using Device Tree Changesets (`of_overlay_remove`). During removal, the kernel traverses node references to release hardware resources.
+2. **Active File Descriptor Holds**: If any userland process (such as a running Python web server `web_ui.py`, a background `xdputil` run, or the ZOCL kernel driver) holds an open file descriptor on `/dev/zocl` or `/dev/dri/renderD128`, the device node refcount remains $\ge 2$.
+3. **Cosmetic vs Blocking Errors**: The `OF: ERROR: memory leak` log is a known non-fatal diagnostic warning in the Xilinx 5.15 kernel during dynamic device tree node destruction. However, if the active process is not terminated, the driver prevents slot 0 from being reclaimed.
+
+#### Engineering Solution
+1. **Process Teardown Protocol**: Established a strict pre-unload check to terminate active hardware-accessing processes:
+   ```bash
+   sudo fuser -k /dev/zocl /dev/dri/renderD128 2>/dev/null || true
+   sudo killall -9 python3 2>/dev/null || true
+   ```
+2. **Deterministic Reload Sequence**:
+   ```bash
+   sudo xmutil unloadapp
+   sudo xmutil loadapp kv260-benchmark-b4096
+   sudo xmutil listapps  # Verify Active_slot is 0,
+   ```
+
+---
+
+### 🐞 Case Study 8: Initial Board Boot State — Missing `/dev/dri/renderD128`
+
+#### Symptom & Log Output
+After a fresh boot of Ubuntu 22.04 LTS on the KV260, executing any VART DPU application produced an immediate crash:
+```text
+FATAL: Failed to open device: /dev/dri/renderD128: No such file or directory
+[VART] Error: Cannot find DPU device node in /dev/
+```
+Running `sudo xmutil listapps` showed:
+```text
+Accelerator          Accel_type   Base     Base_type  #slots(PL+AIE)  Active_slot
+kv260-benchmark-b4096 XRT_FLAT    ...      XRT_FLAT   (0+0)           -1
+```
+
+#### Root Cause Analysis
+- **Uninitialized Programmable Logic on Boot**: The AMD Kria KV260 architecture boots into a minimal, unprogrammed base state where the FPGA Programmable Logic (PL) is completely blank (`Active_slot: -1`).
+- Because the bitstream is not loaded on boot, the `DPUCZDX8G` hardware compute unit and the ZOCL character devices (`/dev/zocl`, `/dev/dri/renderD128`) **do not exist in the Linux `/dev` tree** until an overlay application is explicitly loaded via the FPGA Manager (`/sys/class/fpga_manager/fpga0/firmware`).
+
+#### Engineering Solution
+- Documented and automated the mandatory board startup sequence before executing any Python or VART code:
+  ```bash
+  sudo xmutil loadapp kv260-benchmark-b4096
+  ```
+- Verified hardware driver probing:
+  ```bash
+  ls -l /dev/dri/renderD128  # Verify character device is present
+  cat /proc/interrupts | grep -i zocl  # Verify zocl_cu[1] is registered
+  ```
+
+---
+
+### 🐞 Case Study 9: Kria KV260 QSPI Bootloader Firmware Mismatches
+
+#### Symptom
+When inserting an SD card with Ubuntu 22.04 LTS and powering on the KV260:
+- Board power LEDs illuminated green, but the Micro-USB UART serial terminal (`/dev/ttyUSB1` @ 115200 baud) produced no bootloader output, or U-Boot halted before loading the Linux kernel.
+
+#### Root Cause Analysis
+- **QSPI Flash vs SD Card Bootloader Mismatch**: Kria SOM modules read initial boot stages (FSBL and PMU firmware) from onboard QSPI NOR flash memory before handing off execution to the SD card.
+- Factory boards with older 2021.1 / 2021.2 QSPI firmware lack support for newer Ubuntu 22.04 LTS kernel 5.15 device trees, causing boot ROM handoff failures.
+
+#### Engineering Solution
+- Booted the KV260 into recovery mode using the Xilinx Kria Boot Firmware Recovery utility.
+- Flashed updated 2022.2 bootloader firmware (`BOOT.BIN`) into QSPI memory:
+  ```bash
+  sudo xmutil bootfw_update -i /path/to/BOOT.BIN
+  ```
+- Formatted the MicroSD card with a dual-partition layout:
+  - Partition 1: FAT32 (`system-boot`) containing kernel image `vmlinuz` and `initrd.img`
+  - Partition 2: ext4 (`writable`) containing the root filesystem.
+
+---
+
+### 🐞 Case Study 10: Contiguous Memory Allocator (CMA) Pool Exhaustion
+
+#### Symptom & Log Output
+When spawning multiple concurrent inference instances or re-initializing the runner repeatedly:
+```text
+[drm:zocl_create_bo] *ERROR* Failed to allocate CMA memory for buffer object
+OSError: [Errno 12] Cannot allocate memory
+```
+
+#### Root Cause Analysis
+- **DMA Physical Buffer Requirements**: The DPUCZDX8G hardware IP core and Mel GEMM HLS kernel use AXI Direct Memory Access (DMA) for zero-copy data transfer. DMA requires physically contiguous, un-paged RAM allocated from the Linux kernel's Contiguous Memory Allocator (CMA) pool.
+- The default Ubuntu Linux kernel allocates a restricted CMA pool. Repeated instantiation of VART runners without proper object disposal exhausted the contiguous memory buffer.
+
+#### Engineering Solution
+1. **Singleton Runner Caching**: Implemented thread-safe singleton caching in `board/app/dpu_runner.py` (`VARTDPURunner.get_instance()`), guaranteeing that DMA input/output buffers are allocated once during pre-warming and reused across subsequent inference runs.
+2. **Kernel CMA Pool Expansion**: Expanded the CMA pool size in `/boot/firmware/cmdline.txt`:
+   ```text
+   cma=1024M
+   ```
+   Providing 1.0 GB of contiguous memory headroom for multi-stream inference and custom HLS buffers.
+
+---
+
+### 🐞 Case Study 11: Link-Local DNS Resolution & Offline Staging Workflow
+
+#### Symptom
+During on-board testing via a direct Ethernet connection to the host PC:
+```text
+ubuntu@kria:~$ git pull origin main
+fatal: unable to access 'https://github.com/...': Could not resolve host: github.com
+```
+
+#### Root Cause Analysis
+- When operating on a local peer-to-peer subnet (`10.10.8.x`) without an active internet gateway, Ubuntu's `systemd-resolved` stub resolver (`127.0.0.53`) could not reach external DNS root servers, preventing `git pull` or `apt` operations on the board.
+
+#### Engineering Solution
+1. **DNS Fallback Configuration**: Configured static nameservers in `/etc/resolv.conf`:
+   ```bash
+   echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf
+   ```
+2. **Local Peer-to-Peer HTTP Distribution**: Created an offline peer-to-peer deployment mechanism:
+   - On Host PC: Launched lightweight HTTP file server `python -m http.server 8000`.
+   - On Board: Downloaded deployment bundles directly across the LAN:
+     ```bash
+     wget http://10.10.8.75:8000/deploy_kria_kv260.tar.gz -O deploy_kria_kv260.tar.gz
+     tar -xzf deploy_kria_kv260.tar.gz -C ~/deploy_kria_kv260/
+     ```
+   This decoupled hardware board evaluation from external internet connectivity entirely.
+
+---
+
 ## Part 4: Master Commands Cheatsheet
 
 ### 4.1 FPGA Board Firmware Management (`xmutil`)
@@ -410,6 +547,26 @@ pytest tests/ -v
 
 # Run CPU baseline benchmark with thread sweeps
 python benchmarks/cpu_baseline.py
+```
+
+### 4.6 Linux Diagnostics, Hardware Interrupt Verification & Clean Teardown
+```bash
+# Check hardware GIC interrupts and verify zocl_cu[1] DPU compute engine
+cat /proc/interrupts | grep -i zocl
+
+# Check Linux CMA contiguous memory allocation status
+cat /proc/meminfo | grep -i cma
+
+# Terminate any hung processes holding /dev/zocl before overlay unloading
+sudo fuser -k /dev/zocl /dev/dri/renderD128 2>/dev/null || true
+sudo killall -9 python3 2>/dev/null || true
+
+# Force-unload overlay and verify slot 0 returns to unmapped state (-1)
+sudo xmutil unloadapp
+sudo xmutil listapps
+
+# Inspect kernel dmesg for FPGA manager, ZOCL driver, and device tree logs
+dmesg | grep -E "fpga|zocl|dpu|OF:" | tail -n 25
 ```
 
 ---
