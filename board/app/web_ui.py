@@ -5761,7 +5761,7 @@ HTML_PAGE = """<!DOCTYPE html>
 
             document.getElementById('res-acq-label').innerText = data.mode === 'passive' ? 'WAV IO' : 'Live Mic';
             document.getElementById('res-load-ms').innerText = data.load_ms.toFixed(2) + ' ms';
-            document.getElementById('res-preproc-ms').innerText = data.preproc_ms.toFixed(2) + ' ms';
+            document.getElementById('res-preproc-ms').innerText = ((data.engine === 'dpu_hls' || data.engine === 'custom_dpu') ? data.preproc_ms.toFixed(3) : data.preproc_ms.toFixed(2)) + ' ms';
             if (isStaged) {
                 document.getElementById('res-infer-ms').innerText = 'N/A (Host PC) · Target: ' + data.infer_ms.toFixed(2) + ' ms';
                 const coreTotal = data.preproc_ms + data.infer_ms + data.post_ms;
@@ -5829,7 +5829,7 @@ HTML_PAGE = """<!DOCTYPE html>
                 } else if (data.engine === 'dpu_hls' || data.engine === 'hls') {
                     card2.className = 'live-pipe-card card-stage-hls';
                     if (tag2) { tag2.className = 'pipe-target-tag tag-hls'; tag2.innerText = '🚀 FPGA HLS'; }
-                    if (sub2) sub2.innerText = 'Custom Mel HLS IP (0.35 ms)';
+                    if (sub2) sub2.innerText = `Custom Mel HLS IP (${data.preproc_ms.toFixed(3)} ms)`;
 
                     card3.className = 'live-pipe-card card-stage-dpu';
                     if (tag3) { tag3.className = 'pipe-target-tag tag-dpu'; tag3.innerText = '⚡ FPGA DPU'; }
@@ -5847,7 +5847,7 @@ HTML_PAGE = """<!DOCTYPE html>
                 } else if (data.engine === 'custom_dpu' || data.engine === 'config_d') {
                     card2.className = 'live-pipe-card card-stage-hls';
                     if (tag2) { tag2.className = 'pipe-target-tag tag-hls'; tag2.innerText = '🚀 CUSTOM HLS'; }
-                    if (sub2) sub2.innerText = 'Custom Mel HLS IP (0xA0010000)';
+                    if (sub2) sub2.innerText = `Custom Mel HLS IP (${data.preproc_ms.toFixed(3)} ms)`;
 
                     card3.className = 'live-pipe-card card-stage-custom-dpu';
                     if (tag3) { tag3.className = 'pipe-target-tag tag-custom-dpu'; tag3.innerText = '🏆 CUSTOM DPU'; }
