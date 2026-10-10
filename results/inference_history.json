@@ -1,5 +1,789 @@
 [
   {
+    "id": "RUN-1791619838046",
+    "timestamp": "2026-10-10 13:40:38",
+    "timestamp_ms": 1791619838046,
+    "mode": "realtime",
+    "engine": "dpu",
+    "runner_label": "\u26a1 DPUCZDX8G Hardware Core (B4096 @ 300MHz)",
+    "filename": "live-mic-2026-10-10T08-10-37-749Z.wav",
+    "keyword": "LEFT, UP, YES, GO",
+    "detected_keywords": [
+      "LEFT",
+      "UP",
+      "YES",
+      "GO"
+    ],
+    "confidence": 0.88,
+    "class_idx": 4,
+    "load_ms": 0.27,
+    "preproc_ms": 13.5681,
+    "infer_ms": 1.59,
+    "post_ms": 0.05,
+    "total_ms": 15.2081,
+    "is_board_dpu": false,
+    "dpu_irq": null,
+    "transcript": "hello hello Syed left",
+    "raw_data": {
+      "keyword": "LEFT, UP, YES, GO",
+      "detected_keywords": [
+        "LEFT",
+        "UP",
+        "YES",
+        "GO"
+      ],
+      "detected_count": 4,
+      "keywords_matrix": [
+        {
+          "keyword": "yes",
+          "status": "YES",
+          "present": true,
+          "confidence": 0.3986,
+          "class_idx": 0
+        },
+        {
+          "keyword": "no",
+          "status": "NO",
+          "present": false,
+          "confidence": 0.0718,
+          "class_idx": 1
+        },
+        {
+          "keyword": "up",
+          "status": "YES",
+          "present": true,
+          "confidence": 0.4082,
+          "class_idx": 2
+        },
+        {
+          "keyword": "down",
+          "status": "NO",
+          "present": false,
+          "confidence": 0.0399,
+          "class_idx": 3
+        },
+        {
+          "keyword": "left",
+          "status": "YES",
+          "present": true,
+          "confidence": 0.88,
+          "class_idx": 4
+        },
+        {
+          "keyword": "right",
+          "status": "NO",
+          "present": false,
+          "confidence": 0.0371,
+          "class_idx": 5
+        },
+        {
+          "keyword": "on",
+          "status": "NO",
+          "present": false,
+          "confidence": 0.0468,
+          "class_idx": 6
+        },
+        {
+          "keyword": "off",
+          "status": "NO",
+          "present": false,
+          "confidence": 0.1752,
+          "class_idx": 7
+        },
+        {
+          "keyword": "stop",
+          "status": "NO",
+          "present": false,
+          "confidence": 0.0612,
+          "class_idx": 8
+        },
+        {
+          "keyword": "go",
+          "status": "YES",
+          "present": true,
+          "confidence": 0.394,
+          "class_idx": 9
+        }
+      ],
+      "confidence": 0.88,
+      "class_idx": 4,
+      "mode": "realtime",
+      "engine": "dpu",
+      "runner_label": "\u26a1 DPUCZDX8G Hardware Core (B4096 @ 300MHz)",
+      "is_staged": true,
+      "is_board_dpu": false,
+      "dpu_irq": null,
+      "measured_infer_ms": 252.102,
+      "filename": "live-mic-2026-10-10T08-10-37-749Z.wav",
+      "transcript": "hello hello Syed left",
+      "duration_ms": 5717.3125,
+      "segment_predictions": [
+        {
+          "start_s": 0.0,
+          "keyword": "unknown",
+          "confidence": 0.7983582019805908,
+          "class_idx": 10
+        },
+        {
+          "start_s": 0.25,
+          "keyword": "unknown",
+          "confidence": 0.739587128162384,
+          "class_idx": 10
+        },
+        {
+          "start_s": 0.5,
+          "keyword": "unknown",
+          "confidence": 0.8036110997200012,
+          "class_idx": 10
+        },
+        {
+          "start_s": 0.75,
+          "keyword": "unknown",
+          "confidence": 0.689464271068573,
+          "class_idx": 10
+        },
+        {
+          "start_s": 1.0,
+          "keyword": "up",
+          "confidence": 0.40817543864250183,
+          "class_idx": 2
+        },
+        {
+          "start_s": 1.25,
+          "keyword": "go",
+          "confidence": 0.39398884773254395,
+          "class_idx": 9
+        },
+        {
+          "start_s": 1.5,
+          "keyword": "unknown",
+          "confidence": 0.649480402469635,
+          "class_idx": 10
+        },
+        {
+          "start_s": 1.75,
+          "keyword": "unknown",
+          "confidence": 0.7724132537841797,
+          "class_idx": 10
+        },
+        {
+          "start_s": 2.0,
+          "keyword": "unknown",
+          "confidence": 0.8482862710952759,
+          "class_idx": 10
+        },
+        {
+          "start_s": 2.25,
+          "keyword": "unknown",
+          "confidence": 0.8046841025352478,
+          "class_idx": 10
+        },
+        {
+          "start_s": 2.5,
+          "keyword": "unknown",
+          "confidence": 0.6014355421066284,
+          "class_idx": 10
+        },
+        {
+          "start_s": 2.75,
+          "keyword": "unknown",
+          "confidence": 0.9081259369850159,
+          "class_idx": 10
+        },
+        {
+          "start_s": 3.0,
+          "keyword": "unknown",
+          "confidence": 0.9005652666091919,
+          "class_idx": 10
+        },
+        {
+          "start_s": 3.25,
+          "keyword": "unknown",
+          "confidence": 0.9094985723495483,
+          "class_idx": 10
+        },
+        {
+          "start_s": 3.5,
+          "keyword": "unknown",
+          "confidence": 0.8383876085281372,
+          "class_idx": 10
+        },
+        {
+          "start_s": 3.75,
+          "keyword": "yes",
+          "confidence": 0.3986337184906006,
+          "class_idx": 0
+        },
+        {
+          "start_s": 4.0,
+          "keyword": "left",
+          "confidence": 0.7998800873756409,
+          "class_idx": 4
+        },
+        {
+          "start_s": 4.25,
+          "keyword": "unknown",
+          "confidence": 0.6078384518623352,
+          "class_idx": 10
+        },
+        {
+          "start_s": 4.5,
+          "keyword": "unknown",
+          "confidence": 0.6304548382759094,
+          "class_idx": 10
+        },
+        {
+          "start_s": 4.72,
+          "keyword": "unknown",
+          "confidence": 0.6517696380615234,
+          "class_idx": 10
+        }
+      ],
+      "load_ms": 0.27,
+      "preproc_ms": 13.5681,
+      "infer_ms": 1.59,
+      "post_ms": 0.05
+    }
+  },
+  {
+    "id": "RUN-1791619811695",
+    "timestamp": "2026-10-10 13:40:11",
+    "timestamp_ms": 1791619811695,
+    "mode": "realtime",
+    "engine": "cpu",
+    "runner_label": "CPU Baseline (ARM Cortex-A53 @ 1.2GHz)",
+    "filename": "live-mic-2026-10-10T08-10-11-342Z.wav",
+    "keyword": "UP, DOWN, LEFT, RIGHT, ON",
+    "detected_keywords": [
+      "UP",
+      "DOWN",
+      "LEFT",
+      "RIGHT",
+      "ON"
+    ],
+    "confidence": 0.9994,
+    "class_idx": 2,
+    "load_ms": 0.27,
+    "preproc_ms": 18.4063,
+    "infer_ms": 308.1606,
+    "post_ms": 0.09,
+    "total_ms": 326.65689999999995,
+    "is_board_dpu": false,
+    "dpu_irq": null,
+    "transcript": "left right right up up down down left left right right up up  by",
+    "raw_data": {
+      "keyword": "UP, DOWN, LEFT, RIGHT, ON",
+      "detected_keywords": [
+        "UP",
+        "DOWN",
+        "LEFT",
+        "RIGHT",
+        "ON"
+      ],
+      "detected_count": 5,
+      "keywords_matrix": [
+        {
+          "keyword": "yes",
+          "status": "NO",
+          "present": false,
+          "confidence": 0.0147,
+          "class_idx": 0
+        },
+        {
+          "keyword": "no",
+          "status": "NO",
+          "present": false,
+          "confidence": 0.053,
+          "class_idx": 1
+        },
+        {
+          "keyword": "up",
+          "status": "YES",
+          "present": true,
+          "confidence": 0.9994,
+          "class_idx": 2
+        },
+        {
+          "keyword": "down",
+          "status": "YES",
+          "present": true,
+          "confidence": 0.9977,
+          "class_idx": 3
+        },
+        {
+          "keyword": "left",
+          "status": "YES",
+          "present": true,
+          "confidence": 0.88,
+          "class_idx": 4
+        },
+        {
+          "keyword": "right",
+          "status": "YES",
+          "present": true,
+          "confidence": 0.88,
+          "class_idx": 5
+        },
+        {
+          "keyword": "on",
+          "status": "YES",
+          "present": true,
+          "confidence": 0.4492,
+          "class_idx": 6
+        },
+        {
+          "keyword": "off",
+          "status": "NO",
+          "present": false,
+          "confidence": 0.2002,
+          "class_idx": 7
+        },
+        {
+          "keyword": "stop",
+          "status": "NO",
+          "present": false,
+          "confidence": 0.0429,
+          "class_idx": 8
+        },
+        {
+          "keyword": "go",
+          "status": "NO",
+          "present": false,
+          "confidence": 0.133,
+          "class_idx": 9
+        }
+      ],
+      "confidence": 0.9994,
+      "class_idx": 2,
+      "mode": "realtime",
+      "engine": "cpu",
+      "runner_label": "CPU Baseline (ARM Cortex-A53 @ 1.2GHz)",
+      "is_staged": false,
+      "is_board_dpu": false,
+      "dpu_irq": null,
+      "measured_infer_ms": 308.1606,
+      "filename": "live-mic-2026-10-10T08-10-11-342Z.wav",
+      "transcript": "left right right up up down down left left right right up up  by",
+      "duration_ms": 6997.3125,
+      "segment_predictions": [
+        {
+          "start_s": 0.0,
+          "keyword": "right",
+          "confidence": 0.510115385055542,
+          "class_idx": 5
+        },
+        {
+          "start_s": 0.25,
+          "keyword": "right",
+          "confidence": 0.7738257050514221,
+          "class_idx": 5
+        },
+        {
+          "start_s": 0.5,
+          "keyword": "right",
+          "confidence": 0.6446647644042969,
+          "class_idx": 5
+        },
+        {
+          "start_s": 0.75,
+          "keyword": "right",
+          "confidence": 0.6909210085868835,
+          "class_idx": 5
+        },
+        {
+          "start_s": 1.0,
+          "keyword": "unknown",
+          "confidence": 0.6969565153121948,
+          "class_idx": 10
+        },
+        {
+          "start_s": 1.25,
+          "keyword": "up",
+          "confidence": 0.818333625793457,
+          "class_idx": 2
+        },
+        {
+          "start_s": 1.5,
+          "keyword": "up",
+          "confidence": 0.9982907176017761,
+          "class_idx": 2
+        },
+        {
+          "start_s": 1.75,
+          "keyword": "up",
+          "confidence": 0.9949119687080383,
+          "class_idx": 2
+        },
+        {
+          "start_s": 2.0,
+          "keyword": "on",
+          "confidence": 0.44918298721313477,
+          "class_idx": 6
+        },
+        {
+          "start_s": 2.25,
+          "keyword": "down",
+          "confidence": 0.883870005607605,
+          "class_idx": 3
+        },
+        {
+          "start_s": 2.5,
+          "keyword": "down",
+          "confidence": 0.997718870639801,
+          "class_idx": 3
+        },
+        {
+          "start_s": 2.75,
+          "keyword": "down",
+          "confidence": 0.9724012613296509,
+          "class_idx": 3
+        },
+        {
+          "start_s": 3.0,
+          "keyword": "unknown",
+          "confidence": 0.7198163270950317,
+          "class_idx": 10
+        },
+        {
+          "start_s": 3.25,
+          "keyword": "unknown",
+          "confidence": 0.8247541189193726,
+          "class_idx": 10
+        },
+        {
+          "start_s": 3.5,
+          "keyword": "unknown",
+          "confidence": 0.7243707180023193,
+          "class_idx": 10
+        },
+        {
+          "start_s": 3.75,
+          "keyword": "unknown",
+          "confidence": 0.6205567121505737,
+          "class_idx": 10
+        },
+        {
+          "start_s": 4.0,
+          "keyword": "right",
+          "confidence": 0.6335498690605164,
+          "class_idx": 5
+        },
+        {
+          "start_s": 4.25,
+          "keyword": "unknown",
+          "confidence": 0.7768971920013428,
+          "class_idx": 10
+        },
+        {
+          "start_s": 4.5,
+          "keyword": "unknown",
+          "confidence": 0.6780452728271484,
+          "class_idx": 10
+        },
+        {
+          "start_s": 4.75,
+          "keyword": "up",
+          "confidence": 0.958238959312439,
+          "class_idx": 2
+        },
+        {
+          "start_s": 5.0,
+          "keyword": "up",
+          "confidence": 0.9993566870689392,
+          "class_idx": 2
+        },
+        {
+          "start_s": 5.25,
+          "keyword": "up",
+          "confidence": 0.7817144393920898,
+          "class_idx": 2
+        },
+        {
+          "start_s": 5.5,
+          "keyword": "unknown",
+          "confidence": 0.8322395086288452,
+          "class_idx": 10
+        },
+        {
+          "start_s": 5.75,
+          "keyword": "unknown",
+          "confidence": 0.8311492204666138,
+          "class_idx": 10
+        },
+        {
+          "start_s": 6.0,
+          "keyword": "unknown",
+          "confidence": 0.8569357395172119,
+          "class_idx": 10
+        }
+      ],
+      "load_ms": 0.27,
+      "preproc_ms": 18.4063,
+      "infer_ms": 308.1606,
+      "post_ms": 0.09
+    }
+  },
+  {
+    "id": "RUN-1791619781998",
+    "timestamp": "2026-10-10 13:39:41",
+    "timestamp_ms": 1791619781998,
+    "mode": "realtime",
+    "engine": "cpu",
+    "runner_label": "CPU Baseline (ARM Cortex-A53 @ 1.2GHz)",
+    "filename": "live-mic-2026-10-10T08-09-41-445Z.wav",
+    "keyword": "LEFT, RIGHT",
+    "detected_keywords": [
+      "LEFT",
+      "RIGHT"
+    ],
+    "confidence": 0.88,
+    "class_idx": 4,
+    "load_ms": 0.28,
+    "preproc_ms": 62.1162,
+    "infer_ms": 379.6846,
+    "post_ms": 0.09,
+    "total_ms": 441.89079999999996,
+    "is_board_dpu": false,
+    "dpu_irq": null,
+    "transcript": "hello hello mike testing mike testing Mani Bharathi left right",
+    "raw_data": {
+      "keyword": "LEFT, RIGHT",
+      "detected_keywords": [
+        "LEFT",
+        "RIGHT"
+      ],
+      "detected_count": 2,
+      "keywords_matrix": [
+        {
+          "keyword": "yes",
+          "status": "NO",
+          "present": false,
+          "confidence": 0.1133,
+          "class_idx": 0
+        },
+        {
+          "keyword": "no",
+          "status": "NO",
+          "present": false,
+          "confidence": 0.1738,
+          "class_idx": 1
+        },
+        {
+          "keyword": "up",
+          "status": "NO",
+          "present": false,
+          "confidence": 0.0377,
+          "class_idx": 2
+        },
+        {
+          "keyword": "down",
+          "status": "NO",
+          "present": false,
+          "confidence": 0.0251,
+          "class_idx": 3
+        },
+        {
+          "keyword": "left",
+          "status": "YES",
+          "present": true,
+          "confidence": 0.88,
+          "class_idx": 4
+        },
+        {
+          "keyword": "right",
+          "status": "YES",
+          "present": true,
+          "confidence": 0.88,
+          "class_idx": 5
+        },
+        {
+          "keyword": "on",
+          "status": "NO",
+          "present": false,
+          "confidence": 0.0139,
+          "class_idx": 6
+        },
+        {
+          "keyword": "off",
+          "status": "NO",
+          "present": false,
+          "confidence": 0.0342,
+          "class_idx": 7
+        },
+        {
+          "keyword": "stop",
+          "status": "NO",
+          "present": false,
+          "confidence": 0.0516,
+          "class_idx": 8
+        },
+        {
+          "keyword": "go",
+          "status": "NO",
+          "present": false,
+          "confidence": 0.3181,
+          "class_idx": 9
+        }
+      ],
+      "confidence": 0.88,
+      "class_idx": 4,
+      "mode": "realtime",
+      "engine": "cpu",
+      "runner_label": "CPU Baseline (ARM Cortex-A53 @ 1.2GHz)",
+      "is_staged": false,
+      "is_board_dpu": false,
+      "dpu_irq": null,
+      "measured_infer_ms": 379.6846,
+      "filename": "live-mic-2026-10-10T08-09-41-445Z.wav",
+      "transcript": "hello hello mike testing mike testing Mani Bharathi left right",
+      "duration_ms": 6485.3125,
+      "segment_predictions": [
+        {
+          "start_s": 0.0,
+          "keyword": "unknown",
+          "confidence": 0.8357146978378296,
+          "class_idx": 10
+        },
+        {
+          "start_s": 0.25,
+          "keyword": "unknown",
+          "confidence": 0.36339908838272095,
+          "class_idx": 10
+        },
+        {
+          "start_s": 0.5,
+          "keyword": "unknown",
+          "confidence": 0.6084559559822083,
+          "class_idx": 10
+        },
+        {
+          "start_s": 0.75,
+          "keyword": "unknown",
+          "confidence": 0.8081476092338562,
+          "class_idx": 10
+        },
+        {
+          "start_s": 1.0,
+          "keyword": "unknown",
+          "confidence": 0.5161024332046509,
+          "class_idx": 10
+        },
+        {
+          "start_s": 1.25,
+          "keyword": "unknown",
+          "confidence": 0.5611466765403748,
+          "class_idx": 10
+        },
+        {
+          "start_s": 1.5,
+          "keyword": "unknown",
+          "confidence": 0.5705909729003906,
+          "class_idx": 10
+        },
+        {
+          "start_s": 1.75,
+          "keyword": "unknown",
+          "confidence": 0.8352116942405701,
+          "class_idx": 10
+        },
+        {
+          "start_s": 2.0,
+          "keyword": "unknown",
+          "confidence": 0.9311216473579407,
+          "class_idx": 10
+        },
+        {
+          "start_s": 2.25,
+          "keyword": "unknown",
+          "confidence": 0.9481231570243835,
+          "class_idx": 10
+        },
+        {
+          "start_s": 2.5,
+          "keyword": "unknown",
+          "confidence": 0.9514087438583374,
+          "class_idx": 10
+        },
+        {
+          "start_s": 2.75,
+          "keyword": "unknown",
+          "confidence": 0.9546459913253784,
+          "class_idx": 10
+        },
+        {
+          "start_s": 3.0,
+          "keyword": "unknown",
+          "confidence": 0.9443224668502808,
+          "class_idx": 10
+        },
+        {
+          "start_s": 3.25,
+          "keyword": "unknown",
+          "confidence": 0.9488109946250916,
+          "class_idx": 10
+        },
+        {
+          "start_s": 3.5,
+          "keyword": "unknown",
+          "confidence": 0.9337604641914368,
+          "class_idx": 10
+        },
+        {
+          "start_s": 3.75,
+          "keyword": "unknown",
+          "confidence": 0.8946786522865295,
+          "class_idx": 10
+        },
+        {
+          "start_s": 4.0,
+          "keyword": "unknown",
+          "confidence": 0.6240403652191162,
+          "class_idx": 10
+        },
+        {
+          "start_s": 4.25,
+          "keyword": "unknown",
+          "confidence": 0.36502766609191895,
+          "class_idx": 10
+        },
+        {
+          "start_s": 4.5,
+          "keyword": "unknown",
+          "confidence": 0.5210672616958618,
+          "class_idx": 10
+        },
+        {
+          "start_s": 4.75,
+          "keyword": "unknown",
+          "confidence": 0.6468586325645447,
+          "class_idx": 10
+        },
+        {
+          "start_s": 5.0,
+          "keyword": "unknown",
+          "confidence": 0.6873145699501038,
+          "class_idx": 10
+        },
+        {
+          "start_s": 5.25,
+          "keyword": "unknown",
+          "confidence": 0.7327414751052856,
+          "class_idx": 10
+        },
+        {
+          "start_s": 5.49,
+          "keyword": "unknown",
+          "confidence": 0.8880595564842224,
+          "class_idx": 10
+        }
+      ],
+      "load_ms": 0.28,
+      "preproc_ms": 62.1162,
+      "infer_ms": 379.6846,
+      "post_ms": 0.09
+    }
+  },
+  {
     "id": "RUN-1791585663066",
     "timestamp": "2026-10-10 04:11:03",
     "timestamp_ms": 1791585663066,

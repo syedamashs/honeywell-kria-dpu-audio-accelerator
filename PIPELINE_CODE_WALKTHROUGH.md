@@ -17,6 +17,8 @@
 
 ## 2. Common Stage 1 & 2: Audio Ingestion & Network Transport
 
+> **Where the audio goes:** the browser posts the WAV to `/api/infer` on the machine running `web_ui.py`. If that server is running on the KV260, the WAV reaches the board over the network. If it is running on a PC, the WAV reaches that PC instead. The browser does not send the WAV directly to an FPGA block.
+
 ### 2.1 Browser Audio Acquisition (Client-Side JavaScript)
 Audio is captured via the HTML5 Web Audio API or uploaded as a standardized 16 kHz WAV file, then base64-encoded:
 
@@ -92,6 +94,17 @@ def do_POST(self):
 [ Browser Audio ] ──► [ do_POST() Port 8080 ] ──► [ extract_log_mel() ] ──► [ CPUModelRunner ] ──► [ Softmax ]
 ```
 
+### Config A — Input and Output Handoffs
+
+| Part | Input | What happens | Output goes to |
+| :--- | :--- | :--- | :--- |
+| Web server | Base64 WAV from browser | Decodes WAV to normalized 16 kHz audio and makes 1-second windows | CPU preprocessing |
+| `extract_log_mel()` | One audio window, 16,000 float samples | Pre-emphasis → frames → FFT power `[98, 257]` → Mel matrix multiply → log compression | Float32 log-Mel features `[40, 98]` |
+| `CPUModelRunner` | Log-Mel features `[40, 98]` | Formats the input tensor and runs the ONNX neural network on CPU | 12 class logits |
+| Decode step | 12 logits | Softmax, choose highest-scoring class, attach confidence | JSON result returned to browser |
+
+In short: **WAV → server audio windows → CPU log-Mel features → CPU model logits → decoded keyword → browser.**
+
 ### 3.1 Step 1 — Software Mel Spectrogram Preprocessing
 - **Caller in Web UI:** [`board/app/web_ui.py:L6646-L6649`](file:///c:/Users/sripa/OneDrive/Desktop/Hackathon/honeywell-kria-dpu-audio-accelerator/board/app/web_ui.py#L6646-L6649)
 - **Implementation:** [`pipeline/preprocessing.py:L142-L175`](file:///c:/Users/sripa/OneDrive/Desktop/Hackathon/honeywell-kria-dpu-audio-accelerator/pipeline/preprocessing.py#L142-L175)
@@ -125,6 +138,17 @@ def __call__(self, features: np.ndarray) -> np.ndarray:
 ```text
 [ Browser Audio ] ──► [ Host Mel Preproc ] ──► [ VARTDPURunner.infer() ] ──► [ AXI DMA /dev/zocl ] ──► [ DPU B4096 (1.40ms) ]
 ```
+
+### Config B — Input and Output Handoffs
+
+| Part | Input | What happens | Output goes to |
+| :--- | :--- | :--- | :--- |
+| Web server + CPU preprocessing | WAV → 16 kHz audio windows | Same CPU audio preparation as Config A | Float32 log-Mel features `[40, 98]` |
+| `VARTDPURunner.infer()` | Log-Mel features | Scales/clips features to INT8, places them in the input tensor layout expected by the compiled `.xmodel`, and submits a VART job | DPU output tensor |
+| DPU + VART | INT8 feature tensor | Executes the compiled DPU subgraph; VART waits for completion and provides the output buffer | 12 output scores/logits |
+| Decode step | Output scores | CPU applies softmax and selects the keyword | JSON result returned to browser |
+
+In short: **WAV → CPU-generated log-Mel features → INT8 tensor → VART/DPU → logits → CPU decode → browser.** If VART/DPU setup or inference fails in the web UI, that request falls back to the CPU model path.
 
 ### 4.1 Step 1 — Dispatch to VART DPU Runner
 - **Caller in Web UI:** [`board/app/web_ui.py:L6670-L6690`](file:///c:/Users/sripa/OneDrive/Desktop/Hackathon/honeywell-kria-dpu-audio-accelerator/board/app/web_ui.py#L6670-L6690)
@@ -174,16 +198,28 @@ logits = out_buf.flatten()[:12].astype(np.float32)
 *Goal: Eliminate the CPU preprocessing bottleneck by offloading Mel filterbank GEMM to synthesizable Vivado HLS IP.*
 
 ```text
-[ Browser Audio ] ──► [ HLS Mel IP (0xA0000000) 0.35ms ] ──► [ VART DPU (0xA0010000) 1.40ms ] ──► [ Softmax ]
+[ Browser Audio ] ──► [ Python audio/DSP on server ] ──► [ Mel GEMM HLS attempt ] ──► [ Log compression on server ] ──► [ VART DPU ] ──► [ CPU decode ]
 ```
+
+### Config C — Input and Output Handoffs
+
+| Part | Input | What happens | Output goes to |
+| :--- | :--- | :--- | :--- |
+| Web server + DSP preprocessing | WAV → 16 kHz audio window | Python performs pre-emphasis, framing, FFT, and power-spectrum calculation | Float32 power values `[98, 257]` |
+| `HLSMelRunner.infer_gemm()` | Power spectrum | If the HLS IP and `/dev/udmabuf0` are available, quantizes input and attempts the AXI DMA transfer; otherwise computes the fixed-point-style matrix multiply with NumPy | Mel values `[40, 98]` and a hardware/fallback flag |
+| Log compression | Mel values | Python applies log compression | Float32 log-Mel features `[40, 98]` |
+| `VARTDPURunner.infer()` | Log-Mel features | Quantizes/formats the model input and runs the compiled network through VART/DPU | 12 output scores/logits |
+| Decode step | Output scores | CPU applies softmax and chooses the keyword | JSON result returned to browser |
+
+In short: **WAV → server-side FFT → HLS Mel calculation (or NumPy fallback) → server-side log compression → VART/DPU (or UI CPU fallback) → logits → CPU decode → browser.** The HLS runner returns `is_hw` so a fallback result is distinguishable from a completed physical DMA path.
 
 ### 5.1 Step 1 — Mel GEMM HLS Physical Memory Mapping (`/dev/mem`)
 - **Caller in Web UI:** [`board/app/web_ui.py:L6636-L6645`](file:///c:/Users/sripa/OneDrive/Desktop/Hackathon/honeywell-kria-dpu-audio-accelerator/board/app/web_ui.py#L6636-L6645)
 - **HLS Driver:** [`HlsMelRunner` in board/app/hls_mel_runner.py:L36-L60](file:///c:/Users/sripa/OneDrive/Desktop/Hackathon/honeywell-kria-dpu-audio-accelerator/board/app/hls_mel_runner.py#L36-L60)
 ```python
 # Physical Register Addresses (audio_dp_hls.bda)
-AXI_DMA_BASE = 0x00A0000000   # 64 KB AXI Direct Memory Access
-MEL_HLS_BASE = 0x00A0010000   # 64 KB Mel Filterbank Kernel
+AXI_DMA_BASE = 0x00A0000000   # AXI DMA controller
+MEL_HLS_BASE = 0x00A0010000   # Mel Filterbank HLS core
 
 # Direct physical memory mapping
 self._dev_mem = open("/dev/mem", "r+b")
@@ -197,10 +233,11 @@ self._hls_map = mmap.mmap(self._dev_mem.fileno(), 0x10000, offset=MEL_HLS_BASE)
 # Start Mel HLS Kernel (ap_start = 1 at offset 0x00)
 self._hls_map[0x00:0x04] = struct.pack("<I", 0x01)
 
-# Stream 257 FFT bins into AXI DMA -> Mel Core produces 40 filterbanks in 0.35 ms
-# Output mel features are fed directly into VARTDPURunner (Section 4.3)
+# Current runner attempts a udmabuf-backed DMA transfer of quantized power bins.
+# It returns Mel values; Python then applies log compression before VART inference.
 ```
-- **Total Pipeline Latency:** **1.87 ms** (**534.8 FPS**).
+- **Output handoff:** `infer_gemm()` returns Mel values to `extract_log_mel_hls()`. That function applies log compression and returns `[40, 98]` features to the web UI, which then passes them to `VARTDPURunner`.
+- **Hardware status:** if the DMA prerequisites or transfer fail, `infer_gemm()` uses NumPy and returns `is_hw=False`; do not describe the fallback timing as a physical FPGA measurement.
 
 ---
 
@@ -211,6 +248,19 @@ self._hls_map[0x00:0x04] = struct.pack("<I", 0x01)
 ```text
 [ Browser Audio ] ──► [ Mel HLS IP (0xA0000000) ] ──► [ Custom DPU IP (0xA0020000) ] ──► [ Logits ]
 ```
+
+### Config D — Input and Output Handoffs
+
+| Part | Input | What happens | Output goes to |
+| :--- | :--- | :--- | :--- |
+| Web server + HLS preprocessing | WAV → audio window | Python creates the FFT power spectrum; `HLSMelRunner` attempts the Mel HLS/DMA path or computes with NumPy; Python applies log compression | Float32 log-Mel features `[40, 98]` |
+| `CustomDPURunner.infer()` | Log-Mel features | Attempts to quantize/copy features into `/dev/udmabuf1`, start the custom IP, and poll its `ap_done` register | If `ap_done` is seen, reads 12 fixed-point logits from the output-buffer region |
+| Software fallback | Same log-Mel features | If the hardware path is unavailable or does not complete, runs `dscnn_medium.onnx` with CPU ONNX Runtime; if that also fails, returns a placeholder score vector | 12 scores/logits for the common decode step |
+| Decode step | 12 scores/logits | CPU applies softmax, keyword selection, and result formatting | JSON result returned to browser |
+
+In short: **WAV → server-side FFT → HLS Mel attempt/fallback → log-Mel features → custom-DPU attempt or CPU ONNX fallback → logits → CPU decode → browser.**
+
+> **Hardware-path limitation in the current code:** `CustomDPURunner` reads the `udmabuf1` physical address but does not program a DMA source/destination address or otherwise pass that address to the custom IP. It writes `ap_start` and polls `ap_done`, so the code shows an attempted start, but does not establish that the feature buffer reached the IP or that the returned buffer contains logits produced by that IP. The ONNX fallback is explicitly CPU execution.
 
 ### 6.1 Step 1 — Dispatch to Custom DPU Runner
 - **Caller in Web UI:** [`board/app/web_ui.py:L6659-L6669`](file:///c:/Users/sripa/OneDrive/Desktop/Hackathon/honeywell-kria-dpu-audio-accelerator/board/app/web_ui.py#L6659-L6669)
@@ -267,8 +317,8 @@ renderPipelineDelayGraph(data.load_ms, data.preproc_ms, data.infer_ms, data.post
 ## 8. Summary of Physical Hardware Addresses on Kria KV260
 
 ```text
-0x00_A000_0000 ──► AXI DMA Controller           (64 KB) [Config C & D: Streaming Audio]
-0x00_A001_0000 ──► Mel Filterbank GEMM HLS Core (64 KB) [Config C & D: II=1 Feature Engine]
+0x00_A000_0000 ──► AXI DMA Controller           (64 KB) [Config C & D: Mel power/features transfer]
+0x00_A001_0000 ──► Mel Filterbank GEMM HLS Core (64 KB) [Config C & D: Mel feature calculation]
 0x00_A002_0000 ──► Custom DS-CNN Neural Core    (64 KB) [Config D: Custom Depthwise DPU]
 /dev/zocl      ──► AMD Xilinx DPUCZDX8G B4096   (Direct) [Config B & C: Official DPU]
 ```
