@@ -2951,10 +2951,8 @@ HTML_PAGE = """<!DOCTYPE html>
 
                         <!-- Core 1: AMD DPU B4096 -->
                         <rect x="570" y="90" width="450" height="105" rx="6" fill="#13271d" stroke="#10b981" stroke-width="1.5"/>
-                        <div style="display:flex;">
-                            <text x="585" y="112" fill="#34d399" font-size="11.5" font-weight="700">AMD DPUCZDX8G B4096 IP CORE (Physical Silicon)</text>
-                            <text x="960" y="112" fill="#fbbf24" font-size="9" font-weight="700">763.6 FPS</text>
-                        </div>
+                        <text x="585" y="112" fill="#34d399" font-size="11.5" font-weight="700">AMD DPUCZDX8G B4096 IP CORE (Physical Silicon)</text>
+                        <text x="960" y="112" fill="#fbbf24" font-size="9" font-weight="700">763.6 FPS</text>
                         <text x="585" y="130" fill="#ffffff" font-size="10">4,096 INT8 MAC/cycle Systolic Matrix Array | 2.45 TOPs Peak Compute</text>
                         <text x="585" y="146" fill="#94a3b8" font-size="9">Dedicated Hardware Engines: Depthwise Conv Unit | Max/Average Pooling | ReLU ALU</text>
                         <text x="585" y="162" fill="#cbd5e1" font-size="9">Storage: 96 BRAM36 + UltraRAM Activation Cache | Zero CPU Thread Contention</text>
