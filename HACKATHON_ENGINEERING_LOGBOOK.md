@@ -69,7 +69,115 @@ Test PASS.
 
 ---
 
-## Part 2: Engineering Logbook — Errors Encountered & Solutions
+## Part 2: Complete AMD Vitis™ AI Toolchain Pipeline & Implementation Details
+
+AMD Vitis™ AI is the primary software and hardware framework enabling the deployment of our deep neural network on the physical FPGA silicon of the AMD Kria KV260. Our project utilizes Vitis AI across all five key phases of the embedded AI lifecycle:
+
+```text
+                       THE VITIS AI LIFECYCLE IN OUR PROJECT
+                       
+  [ PyTorch FP32 Trained Model ]
+                 │
+                 ▼
+ 1. Vitis AI Quantizer (vai_q_pytorch)  ──► [ INT8 Quantized XIR Graph: dscnn_medium_int.xmodel ]
+                 │
+                 ▼
+ 2. Vitis AI Compiler (vai_c_xir)       ──► [ Hardware Micro-Ops: models/compiled/dscnn_medium.xmodel ]
+                 │
+                 ▼
+ 3. FPGA PL Overlay (xmutil)            ──► [ DPUCZDX8G B4096 Hardware IP Core @ 300MHz ]
+                 │
+                 ▼
+ 4. Board Runtime Engine (VART + XIR)   ──► [ board/app/dpu_runner.py & web_ui.py via /dev/zocl ]
+                 │
+                 ▼
+ 5. Hardware Silicon Benchmark (xdputil) ──► [ 45,819 Frames @ 763.6 FPS Sustained (Test PASS) ]
+```
+
+### 2.1 Model Quantization (`vai_q_pytorch`)
+* **Tool**: `vai_q_pytorch` (Vitis AI Quantizer for PyTorch)
+* **Execution Environment**: `xilinx/vitis-ai-pytorch-cpu:latest` Docker Container
+* **Script**: [`scripts/quantize.sh`](file:///scripts/quantize.sh)
+* **Methodology**:
+  - Embedded edge FPGAs require low-power fixed-point INT8 arithmetic.
+  - Performed Post-Training Quantization (PTQ) without fine-tuning:
+    - Analyzed the dynamic range of activations and weights across calibration speech samples from the Google Speech Commands v2 dataset.
+    - Generated symmetric power-of-two scaling factors (`fix_point` position values).
+    - Folded Batch Normalization layers directly into adjacent convolutional layer weights to eliminate runtime latency and memory hops.
+  - **Result**: Reduced weight storage from 664 KB (FP32) to **166 KB (INT8)** (4× compression) with **0.0% accuracy degradation** on 10 evaluation test vectors.
+  - **Output**: `models/quantized/dscnn_medium_int.xmodel`
+
+### 2.2 Model Compilation & Graph Partitioning (`vai_c_xir`)
+* **Tool**: `vai_c_xir` (Vitis AI Compiler for Xilinx Intermediate Representation)
+* **Script**: [`scripts/compile.sh`](file:///scripts/compile.sh)
+* **Exact Docker Invocation**:
+  ```bash
+  docker run --rm -v "$(pwd):/workspace" -w /workspace "${DOCKER_IMAGE}" \
+      bash -c "conda activate vitis-ai-pytorch && \
+      vai_c_xir \
+          -x ./models/quantized/dscnn_medium_int.xmodel \
+          -a /opt/vitis_ai/compiler/arch/DPUCZDX8G/KV260/arch.json \
+          -o ./models/compiled \
+          -n dscnn_medium"
+  ```
+* **Target Architecture Specification (`arch.json`)**:
+  - Target Core: `DPUCZDX8G`
+  - Engine Configuration: `B4096` (4,096 parallel MAC operations per cycle)
+  - Target Hardware: AMD Kria KV260 SOM (`xck26-sfvc784-2LV-c`)
+  - Clock Frequencies: 300 MHz (DPU core compute logic) / 600 MHz (DSP multiplier double-frequency clock)
+* **Graph Partitioning & Subgraph Inspection (`scripts/inspect_subgraphs.py`)**:
+  ```bash
+  docker run --rm -v "$(pwd):/workspace" -w /workspace "${DOCKER_IMAGE}" \
+      bash -c "conda activate vitis-ai-pytorch && python scripts/inspect_subgraphs.py --xmodel ./models/compiled/dscnn_medium.xmodel"
+  ```
+  - `vai_c_xir` performs automatic graph partitioning:
+    - **DPU Subgraphs**: Standard Conv2D, Depthwise Separable Conv2D, folded BatchNorm, ReLU, and Average Pooling are compiled into hardware microcode executed on the FPGA DPU.
+    - **CPU Fallback Subgraphs**: Audio preprocessing (Mel Spectrogram) and final Softmax decoding are scheduled for host CPU execution (or custom Mel HLS IP in Config C/D).
+  - **Output Binary**: `models/compiled/dscnn_medium.xmodel` (378 KB).
+
+### 2.3 Physical FPGA Programmable Logic Overlay (`DPUCZDX8G` B4096 IP Core)
+* **Overlay**: `kv260-benchmark-b4096`
+* **Loading Command**: `sudo xmutil loadapp kv260-benchmark-b4096`
+* **Hardware Architecture**:
+  - Features the high-performance **DPUCZDX8G B4096 IP core** synthesized on the Kria KV260 UltraScale+ PL fabric.
+  - Peak Compute Capacity: $4,096 \times 300\text{ MHz} = 1.2288\text{ TOPs}$.
+  - Communicates with ARM PS through AXI High-Performance (HP) DMA channels and ZOCL driver (`/dev/zocl`, `/dev/dri/renderD128`).
+  - Interrupt line: Handled via GIC interrupt `zocl_cu[1]` (verified in `/proc/interrupts`).
+
+### 2.4 Board Runtime Execution Engine (VART & XIR Python Driver)
+* **Implementation**: [`board/app/dpu_runner.py`](file:///board/app/dpu_runner.py) and [`board/app/web_ui.py`](file:///board/app/web_ui.py)
+* **Key Python APIs (`import vart`, `import xir`)**:
+  1. **Graph Deserialization**:
+     ```python
+     graph = xir.Graph.deserialize("models/compiled/dscnn_medium.xmodel")
+     root_subgraph = graph.get_root_subgraph()
+     dpu_subgraphs = [s for s in root_subgraph.children_topological_sort() 
+                      if s.has_attr("device") and s.get_attr("device").upper() == "DPU"]
+     ```
+  2. **Hardware Runner Creation**:
+     ```python
+     runner = vart.Runner.create_runner(dpu_subgraphs[0], "run")
+     ```
+  3. **Zero-Copy DMA Buffer Management**:
+     - Prepares C-contiguous buffers matching the DPU's native NHWC tensor memory layout.
+     - Scales INT8 fixed-point values using `2 ** tensor.get_attr("fix_point")`.
+  4. **Asynchronous Execution & Hardware Interrupt Synchronization**:
+     ```python
+     job_id = runner.execute_async(input_data, output_data)
+     runner.wait(job_id)
+     ```
+     - Streams inputs via DMA, waits for hardware IRQ, and retrieves output classification logits in **1.31 ms**.
+
+### 2.5 Official Hardware Benchmarking Tool (`xdputil`)
+* **Tool**: `/usr/bin/xdputil` (Vitis AI official hardware utility)
+* **Command**: `xdputil benchmark models/compiled/dscnn_medium.xmodel 2`
+* **Validation**:
+  - Direct silicon stress test running 2 worker threads concurrently.
+  - Achieved **763.6 FPS** across **45,819 continuous inference frames** over 60 seconds with **`Test PASS`**.
+
+---
+
+## Part 3: Engineering Logbook — Errors Encountered & Solutions
 
 ### 🐞 Case Study 1: VART DPU Runtime Fingerprint Mismatch
 
@@ -236,9 +344,9 @@ Staged, committed, and pushed the 30.08 MB deployment bundle directly to GitHub.
 
 ---
 
-## Part 3: Master Commands Cheatsheet
+## Part 4: Master Commands Cheatsheet
 
-### 3.1 FPGA Board Firmware Management (`xmutil`)
+### 4.1 FPGA Board Firmware Management (`xmutil`)
 ```bash
 # Query all available FPGA application overlays
 sudo xmutil listapps
@@ -253,7 +361,7 @@ sudo xmutil loadapp kv260-benchmark-b4096
 sudo xmutil listapps
 ```
 
-### 3.2 VART & Silicon Hardware Benchmarking
+### 4.2 VART & Silicon Hardware Benchmarking
 ```bash
 # Single-thread hardware inference benchmark (60 seconds sustained)
 xdputil benchmark models/compiled/dscnn_medium.xmodel 1
@@ -268,7 +376,7 @@ xdputil benchmark models/compiled/dscnn_medium.xmodel 8
 python3 scripts/benchmark_dpu_instances.py
 ```
 
-### 3.3 Automated Board Packaging & Distribution
+### 4.3 Automated Board Packaging & Distribution
 ```bash
 # On Development Host PC (build 30 MB board bundle)
 python scripts/package_for_board.py
@@ -283,7 +391,7 @@ tar -xzf deploy_kria_kv260.tar.gz -C ~/deploy_kria_kv260/
 cd ~/deploy_kria_kv260
 ```
 
-### 3.4 Live Dashboard & Web Application Execution
+### 4.4 Live Dashboard & Web Application Execution
 ```bash
 # Ensure telemetry history directory has full read/write permissions
 sudo chmod -R 777 ~/deploy_kria_kv260/results
@@ -295,7 +403,7 @@ sudo python3 board/app/web_ui.py
 # http://<KV260_IP>:8080
 ```
 
-### 3.5 Automated Algorithmic Verification Suite
+### 4.5 Automated Algorithmic Verification Suite
 ```bash
 # Run complete test suite (preprocessing, model parity, GEMM equivalence, DPU)
 pytest tests/ -v
@@ -306,7 +414,7 @@ python benchmarks/cpu_baseline.py
 
 ---
 
-## Part 4: Repository Architectural Summary
+## Part 5: Repository Architectural Summary
 
 ```text
 honeywell-kria-dpu-audio-accelerator/
@@ -343,7 +451,7 @@ honeywell-kria-dpu-audio-accelerator/
 
 ---
 
-## Part 5: Judging Summary & Key Takeaways
+## Part 6: Judging Summary & Key Takeaways
 
 1. **True Silicon Execution**: Rather than relying exclusively on emulations, the team achieved full physical execution on the AMD Kria KV260 FPGA DPU fabric, sustaining **763.6 FPS** across **45,819 consecutive frames**.
 2. **Full Pipeline Acceleration**: The architecture addresses Amdahl's Law by accelerating both the DSP preprocessing (Mel Filterbank) and the deep learning inference core through dedicated hardware IP cores.
