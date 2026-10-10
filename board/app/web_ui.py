@@ -6380,13 +6380,13 @@ class KWSRequestHandler(http.server.SimpleHTTPRequestHandler):
             elif engine in {"custom_dpu", "config_d"}:
                 preproc_ms = float(np.mean(hls_preproc_latencies)) if ('hls_preproc_latencies' in locals() and hls_preproc_latencies) else 0.35
                 infer_ms = float(np.mean(dpu_hardware_times)) if ('dpu_hardware_times' in locals() and dpu_hardware_times) else 0.65
-                hw_flag = "Physical PL 0xA0020000" if ('custom_results' in locals() and any(r[2] for r in custom_results)) else "FPGA Custom IP"
-                runner_label = f"🏆 Config D: Custom Mel HLS + Custom DS-CNN DPU ({hw_flag})"
+                hw_flag = "Physical PL 0xA0020000" if ('custom_results' in locals() and any(r[2] for r in custom_results)) else "Golden Ref Model"
+                runner_label = f"🏆 Config D: Dual Custom IP ({hw_flag})"
             else:  # dpu_hls or hls
                 preproc_ms = float(np.mean(hls_preproc_latencies)) if ('hls_preproc_latencies' in locals() and hls_preproc_latencies) else 0.35
                 infer_ms = dpu_core_ms
-                hw_flag = "Physical FPGA PL" if ('is_hls_hw' in locals() and is_hls_hw) else "AXI II=1"
-                runner_label = f"🚀 DPU B4096 + Custom Mel GEMM HLS ({hw_flag}, IRQ: {last_irq})" if is_board_dpu else f"🚀 DPU B4096 + Custom Mel GEMM HLS ({hw_flag})"
+                hw_flag = "Physical AXI DMA" if ('is_hls_hw' in locals() and is_hls_hw) else "HLS Golden Ref Model"
+                runner_label = f"🚀 DPU B4096 Silicon + Mel HLS ({hw_flag}, IRQ: {last_irq})" if is_board_dpu else f"🚀 DPU B4096 + Mel HLS ({hw_flag})"
 
             payload = {
                 "keyword": primary_display,
