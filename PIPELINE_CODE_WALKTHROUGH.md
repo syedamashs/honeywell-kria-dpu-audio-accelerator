@@ -22,6 +22,8 @@
 ### 2.1 Browser Audio Acquisition (Client-Side JavaScript)
 Audio is captured via the HTML5 Web Audio API or uploaded as a standardized 16 kHz WAV file, then base64-encoded:
 
+- **Input:** Raw acoustic sound via browser microphone (HTML5 `MediaRecorder`) or binary `.wav` file selected via `<input type="file">`.
+- **Output:** Base64-encoded ASCII data string (`audio_b64`) of the complete WAV file.
 - **Source Function:** [`runInference()` in board/app/web_ui.py:L5904-L5920](file:///c:/Users/sripa/OneDrive/Desktop/Hackathon/honeywell-kria-dpu-audio-accelerator/board/app/web_ui.py#L5904-L5920)
 ```javascript
 // Line 5904 in board/app/web_ui.py
@@ -46,6 +48,8 @@ function runInference() {
 ### 2.2 Network Transmission to the Board
 The Base64 payload is dispatched over the physical Gigabit Ethernet cable (RJ45 port) to TCP Port 8080:
 
+- **Input:** JavaScript JSON dictionary `{ mode: 'passive', engine: '...', filename: '...', audio_b64: '...' }`.
+- **Output:** HTTP POST request packets over Gigabit Ethernet (TCP socket) directed to endpoint `POST /api/infer`.
 - **Source Function:** [`executeBackend()` in board/app/web_ui.py:L5873-L5895](file:///c:/Users/sripa/OneDrive/Desktop/Hackathon/honeywell-kria-dpu-audio-accelerator/board/app/web_ui.py#L5873-L5895)
 ```javascript
 // Line 5873 in board/app/web_ui.py
@@ -64,6 +68,8 @@ async function executeBackend(payload) {
 ### 2.3 Board Server Entrypoint & Audio Decoding (Python Processing System)
 The Kria KV260 HTTP server receives the socket stream on Port 8080, decodes the audio bytes, and slices it into 1-second evaluation windows:
 
+- **Input:** Incoming raw HTTP TCP socket stream read via `self.rfile.read(content_length)`.
+- **Output:** Decoded, 16 kHz normalized mono audio array sliced into 1.0-second sliding windows (`List[np.ndarray]` each of shape `(16000,)`, `float32`).
 - **Server Handler:** [`do_POST()` in board/app/web_ui.py:L6558-L6633](file:///c:/Users/sripa/OneDrive/Desktop/Hackathon/honeywell-kria-dpu-audio-accelerator/board/app/web_ui.py#L6558-L6633)
 ```python
 # Line 6558 in board/app/web_ui.py
@@ -106,6 +112,8 @@ def do_POST(self):
 In short: **WAV → server audio windows → CPU log-Mel features → CPU model logits → decoded keyword → browser.**
 
 ### 3.1 Step 1 — Software Mel Spectrogram Preprocessing
+- **Input:** 1-second audio window of 16,000 normalized float32 samples (`np.ndarray` shape `(16000,)`).
+- **Output:** Float32 Log-Mel spectrogram feature matrix of shape `(40, 98)` (40 Mel frequency filterbank channels across 98 time frames).
 - **Caller in Web UI:** [`board/app/web_ui.py:L6646-L6649`](file:///c:/Users/sripa/OneDrive/Desktop/Hackathon/honeywell-kria-dpu-audio-accelerator/board/app/web_ui.py#L6646-L6649)
 - **Implementation:** [`pipeline/preprocessing.py:L142-L175`](file:///c:/Users/sripa/OneDrive/Desktop/Hackathon/honeywell-kria-dpu-audio-accelerator/pipeline/preprocessing.py#L142-L175)
 ```python
@@ -117,6 +125,8 @@ features_by_window = [
 ```
 
 ### 3.2 Step 2 — ARM Cortex-A53 Neural Inference
+- **Input:** Log-Mel feature matrix of shape `(40, 98)`, reshaped to 4D NCHW float32 tensor `(1, 1, 40, 98)`.
+- **Output:** 12 raw unnormalized classification logits (`np.ndarray` of shape `(12,)`, `float32`).
 - **Caller in Web UI:** [`board/app/web_ui.py:L6691-L6702`](file:///c:/Users/sripa/OneDrive/Desktop/Hackathon/honeywell-kria-dpu-audio-accelerator/board/app/web_ui.py#L6691-L6702)
 - **Implementation:** [`CPUModelRunner` in benchmarks/cpu_baseline.py:L112-L134`](file:///c:/Users/sripa/OneDrive/Desktop/Hackathon/honeywell-kria-dpu-audio-accelerator/benchmarks/cpu_baseline.py#L112-L134)
 ```python
@@ -151,6 +161,8 @@ def __call__(self, features: np.ndarray) -> np.ndarray:
 In short: **WAV → CPU-generated log-Mel features → INT8 tensor → VART/DPU → logits → CPU decode → browser.** If VART/DPU setup or inference fails in the web UI, that request falls back to the CPU model path.
 
 ### 4.1 Step 1 — Dispatch to VART DPU Runner
+- **Input:** List of Log-Mel spectrogram matrices (`List[np.ndarray]` each of shape `(40, 98)`, `float32`).
+- **Output:** Dispatched inferences queued into the physical VART singleton runner instance.
 - **Caller in Web UI:** [`board/app/web_ui.py:L6670-L6690`](file:///c:/Users/sripa/OneDrive/Desktop/Hackathon/honeywell-kria-dpu-audio-accelerator/board/app/web_ui.py#L6670-L6690)
 ```python
 # Line 6672 in board/app/web_ui.py
@@ -162,6 +174,8 @@ dpu_hardware_times = [r[1] / 1e6 for r in results]
 ```
 
 ### 4.2 Step 2 — VART Deserialization & Runner Binding
+- **Input:** Path to compiled XIR graph file (`/home/ubuntu/deploy_kria_kv260/models/compiled/dscnn_medium.xmodel`).
+- **Output:** Active `vart.Runner` instance bound directly to physical FPGA device driver `/dev/zocl`.
 - **Implementation:** [`board/app/dpu_runner.py:L128-L189`](file:///c:/Users/sripa/OneDrive/Desktop/Hackathon/honeywell-kria-dpu-audio-accelerator/board/app/dpu_runner.py#L128-L189)
 ```python
 # Line 130 in board/app/dpu_runner.py
@@ -172,6 +186,8 @@ self.runner = vart.Runner.create_runner(dpu_subgraphs[0], "run")  # Bound to /de
 ```
 
 ### 4.3 Step 3 — Buffer Quantization & Physical Silicon DMA Execution
+- **Input:** Float32 Log-Mel spectrogram `(40, 98)` and fixed-point scale factor `scale = 2^4 = 16.0`.
+- **Output:** 12 raw classification logits (`float32`) extracted from physical FPGA output memory buffer `out_buf`.
 - **Implementation:** [`VARTDPURunner.infer()` in board/app/dpu_runner.py:L205-L235](file:///c:/Users/sripa/OneDrive/Desktop/Hackathon/honeywell-kria-dpu-audio-accelerator/board/app/dpu_runner.py#L205-L235)
 ```python
 # Line 207 in board/app/dpu_runner.py
@@ -214,6 +230,8 @@ logits = out_buf.flatten()[:12].astype(np.float32)
 In short: **WAV → server-side FFT → HLS Mel calculation (or NumPy fallback) → server-side log compression → VART/DPU (or UI CPU fallback) → logits → CPU decode → browser.** The HLS runner returns `is_hw` so a fallback result is distinguishable from a completed physical DMA path.
 
 ### 5.1 Step 1 — Mel GEMM HLS Physical Memory Mapping (`/dev/mem`)
+- **Input:** Physical hardware base addresses `0x00A0000000` (AXI DMA Controller) and `0x00A0010000` (Mel HLS Core Control).
+- **Output:** Mapped userspace byte-buffers `self._dma_map` and `self._hls_map` providing zero-overhead direct PL register control.
 - **Caller in Web UI:** [`board/app/web_ui.py:L6636-L6645`](file:///c:/Users/sripa/OneDrive/Desktop/Hackathon/honeywell-kria-dpu-audio-accelerator/board/app/web_ui.py#L6636-L6645)
 - **HLS Driver:** [`HlsMelRunner` in board/app/hls_mel_runner.py:L36-L60](file:///c:/Users/sripa/OneDrive/Desktop/Hackathon/honeywell-kria-dpu-audio-accelerator/board/app/hls_mel_runner.py#L36-L60)
 ```python
@@ -228,6 +246,8 @@ self._hls_map = mmap.mmap(self._dev_mem.fileno(), 0x10000, offset=MEL_HLS_BASE)
 ```
 
 ### 5.2 Step 2 — Hardware Execution & DMA Handover to DPU
+- **Input:** Quantized 16-bit Q8.8 FFT power-spectrum values `power_q8` (`[98, 257]` 16-bit integer array).
+- **Output:** 40 Mel frequency channels across 98 time frames (`[40, 98]` float32 after log compression), passed directly into `VARTDPURunner.infer()`.
 - **Implementation:** [`HlsMelRunner.compute()` in board/app/hls_mel_runner.py:L140-L200](file:///c:/Users/sripa/OneDrive/Desktop/Hackathon/honeywell-kria-dpu-audio-accelerator/board/app/hls_mel_runner.py#L140-L200)
 ```python
 # Start Mel HLS Kernel (ap_start = 1 at offset 0x00)
@@ -263,6 +283,8 @@ In short: **WAV → server-side FFT → HLS Mel attempt/fallback → log-Mel fea
 > **Hardware-path limitation in the current code:** `CustomDPURunner` reads the `udmabuf1` physical address but does not program a DMA source/destination address or otherwise pass that address to the custom IP. It writes `ap_start` and polls `ap_done`, so the code shows an attempted start, but does not establish that the feature buffer reached the IP or that the returned buffer contains logits produced by that IP. The ONNX fallback is explicitly CPU execution.
 
 ### 6.1 Step 1 — Dispatch to Custom DPU Runner
+- **Input:** Float32 Log-Mel spectrogram windows (`List[np.ndarray]` each of shape `(40, 98)`).
+- **Output:** Dispatched custom neural network inferences queued into `CustomDPURunner.infer()`.
 - **Caller in Web UI:** [`board/app/web_ui.py:L6659-L6669`](file:///c:/Users/sripa/OneDrive/Desktop/Hackathon/honeywell-kria-dpu-audio-accelerator/board/app/web_ui.py#L6659-L6669)
 ```python
 # Line 6661 in board/app/web_ui.py
@@ -273,6 +295,8 @@ logits_by_window = [r[0] for r in custom_results]
 ```
 
 ### 6.2 Step 2 — Direct Register Control at Physical Address `0xA0020000`
+- **Input:** Hardware start bit write `0x01` (`ap_start`) to physical register offset `0x00A0020000` via `/dev/mem`.
+- **Output:** 12 raw classification logits (`float32`) extracted from hardware output buffer or DO-254 Golden Reference Model.
 - **Implementation:** [`CustomDPURunner` in board/app/custom_dpu_runner.py:L29-L63](file:///c:/Users/sripa/OneDrive/Desktop/Hackathon/honeywell-kria-dpu-audio-accelerator/board/app/custom_dpu_runner.py#L29-L63)
 ```python
 # Physical Register Address (audio_dp_hls_dual_custom.bit)
@@ -294,6 +318,8 @@ self._dpu_map[0x00:0x04] = struct.pack("<I", 0x01)
 Once logits are returned by any of the 4 engines, the server decodes top-1 predictions and the browser updates the live dashboard:
 
 ### 7.1 Server-Side Softmax & Multi-Keyword Matrix
+- **Input:** 12 raw unnormalized classification logits (`np.ndarray` of shape `(12,)`, `float32`) per sliding window.
+- **Output:** Top-1 predicted keyword label string (e.g., `"YES"`), confidence percentage (e.g., `94.8%`), and status dictionary for all 10 keywords.
 - **Implementation:** [`board/app/web_ui.py:L6740-L6800`](file:///c:/Users/sripa/OneDrive/Desktop/Hackathon/honeywell-kria-dpu-audio-accelerator/board/app/web_ui.py#L6740-L6800)
 ```python
 # Softmax probability conversion (Line 6745)
@@ -303,6 +329,8 @@ label, conf, idx = decode(logits_flat)
 ```
 
 ### 7.2 Browser Client Rendering
+- **Input:** JSON response object received from `/api/infer` containing `{ keyword, confidence, load_ms, preproc_ms, infer_ms, post_ms, keywords_matrix }`.
+- **Output:** Real-time DOM element updates on the browser dashboard (highlighted keyword card, progress gauges, and per-stage hardware latency breakdown graph).
 - **Implementation:** [`renderResult()` in board/app/web_ui.py:L6145-L6210](file:///c:/Users/sripa/OneDrive/Desktop/Hackathon/honeywell-kria-dpu-audio-accelerator/board/app/web_ui.py#L6145-L6210)
 ```javascript
 // Line 6146 in board/app/web_ui.py
