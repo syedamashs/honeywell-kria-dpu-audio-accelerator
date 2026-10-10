@@ -36,6 +36,7 @@ INCLUDED_ITEMS = [
     "scripts",
     "requirements.txt",
     "README.md",
+    "HONEYWELL_SUBMISSION_REPORT.md",
     "HACKATHON_ENGINEERING_LOGBOOK.md",
     "hls/custom_dpu",
 ]

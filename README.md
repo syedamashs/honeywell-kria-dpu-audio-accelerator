@@ -11,11 +11,16 @@
 [![E2E Speedup](https://img.shields.io/badge/End--to--End%20Speedup-8.24%C3%97-brightgreen.svg)](results/)
 [![Tests Passing](https://img.shields.io/badge/Tests-54%2F54%20Passing-brightgreen.svg)](pipeline/tests/)
 [![Classification Accuracy](https://img.shields.io/badge/Accuracy-100%25%20(10%20Test%20Vectors)-success.svg)](data/test_inputs/)
+[![Submission Report](https://img.shields.io/badge/Honeywell%20Submission-Final%20Report%20(10--Section)-gold.svg)](HONEYWELL_SUBMISSION_REPORT.md)
 [![Engineering Logbook](https://img.shields.io/badge/Judges%20Dossier-Engineering%20Logbook%20%26%20Debug-orange.svg)](HACKATHON_ENGINEERING_LOGBOOK.md)
 
 ---
 
-> 📖 **HACKATHON JUDGES EVALUATION DOSSIER**: See [**`HACKATHON_ENGINEERING_LOGBOOK.md`**](HACKATHON_ENGINEERING_LOGBOOK.md) for the exhaustive engineering logbook documenting all physical silicon benchmarks on the AMD Kria KV260 board (**45,819 frames @ 763.6 FPS** sustained), every runtime error encountered, in-place binary protobuf patching, Amdahl's Law hardware scaling curves, and the complete troubleshooting record.
+> 🚀 **HONEYWELL AEROSPACE HACKATHON OFFICIAL SUBMISSION REPORT**:  
+> Please review [**`HONEYWELL_SUBMISSION_REPORT.md`**](HONEYWELL_SUBMISSION_REPORT.md) — our formal 10-section aerospace engineering report covering SWaP-C optimization, the Preprocessing Wall Amdahl's Law breakthrough, the 4-tier heterogeneous progression (Configs A $\to$ B $\to$ C $\to$ D), 10 real engineering battle log case studies, Vivado silicon microarchitecture, 100% INT8 quantization parity, and the DO-254/DO-178C avionics certification roadmap.
+>
+> 📖 **ENGINEERING LOGBOOK & TROUBLESHOOTING DOSSIER**:  
+> See [**`HACKATHON_ENGINEERING_LOGBOOK.md`**](HACKATHON_ENGINEERING_LOGBOOK.md) for the raw physical silicon execution records on the AMD Kria KV260 board (**45,819 frames @ 763.6 FPS** sustained), in-place binary Protobuf varint patching, CMA memory allocations, Linux device tree leak mitigations, and Docker toolchain workflows.
 
 ---
 
